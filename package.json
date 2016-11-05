@@ -1,0 +1,18 @@
+{
+  "name": "anchoralarm",
+  "version": "0.0.1",
+  "description": "Plugin that checks the vessel possition to see if there's anchor drift",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "signalk-node-server-plugin"
+  ],
+  "author": "scott@scottbender.net",
+  "license": "ISC",
+  "dependencies": {
+    "baconjs": "^0.7.88",
+    "debug": "^2.2.0"
+  }
+}
