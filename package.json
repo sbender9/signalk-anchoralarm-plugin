@@ -1,5 +1,5 @@
 {
-  "name": "anchoralarm",
+  "name": "signalk-anchoralarm-plugin",
   "version": "0.0.1",
   "description": "Plugin that checks the vessel possition to see if there's anchor drift",
   "main": "index.js",

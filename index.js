@@ -26,7 +26,7 @@ module.exports = function(app) {
   var unsubscribe = undefined
 
   plugin.start = function(props) {
-    debug("starting with props: " + props)
+    debug("starting with radius: " + props.radius)
 
     try {
       unsubscribe = Bacon.combineWith(function(position) {
