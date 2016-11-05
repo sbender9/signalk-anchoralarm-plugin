@@ -80,7 +80,7 @@ module.exports = function(app) {
       radius: {
         type: "string",
         title: "Radius (m)",
-        default: "200"
+        default: "60"
       }
     }
   }
@@ -145,6 +145,7 @@ function sendAnchorAlarm(sendit, app)
 {
   if ( sendit )
   {
+    debug("send alarm")
     var delta = getAnchorAlarmDelta(app, "alarm")
     app.signalk.addDelta(delta)
   }
