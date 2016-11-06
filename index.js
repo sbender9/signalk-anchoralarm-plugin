@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 Teppo Kurki <teppo.kurki@iki.fi>
+ * Copyright 2016 Scott Bender <scott@scottbender.net>
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,7 +53,7 @@ module.exports = function(app) {
     debug("started")
   };
 
-  plugin.stop = function(app) {
+  plugin.stop = function() {
     debug("stopping")
     if ( alarm_sent )
     {
