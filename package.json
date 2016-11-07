@@ -1,5 +1,5 @@
 {
-  "name": "signalk-anchoralarm-plugin",
+  "name": "signalk-meta-alarms",
   "version": "0.0.1",
   "description": "Plugin that checks the vessel possition to see if there's anchor drift",
   "main": "index.js",
@@ -13,6 +13,7 @@
   "license": "ISC",
   "dependencies": {
     "baconjs": "^0.7.88",
-    "debug": "^2.2.0"
+    "debug": "^2.2.0",
+    "lodash": "^3.10.1"    
   }
 }

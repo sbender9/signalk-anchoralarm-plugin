@@ -13,11 +13,13 @@
  * limitations under the License.
  */
 
-const debug = require('debug')('anchoralarm')
+const debug = require('debug')('meta-alarms')
 
 const Bacon = require('baconjs');
 
 const util = require('util')
+
+const _ = require('lodash')
 
 module.exports = function(app) {
   var plugin = {};
@@ -26,25 +28,13 @@ module.exports = function(app) {
   var unsubscribe = undefined
 
   plugin.start = function(props) {
-    debug("starting with radius: " + props.radius)
 
-    try {
-      unsubscribe = Bacon.combineWith(function(position) {
-        if (anchor_position == null)
-        {
-          debug("set anchor position to: " + position.latitude + " " + position.longitude)
-          anchor_position = position
-          return false
-        }
-        else
-        {
-          var res = checkPosition(props.radius, position, anchor_position)
-          var was_sent = alarm_sent
-          alarm_sent = res
-          return res && !was_sent
-        }}, ['navigation.position' ].map(app.streambundle.getOwnStream, app.streambundle)).changes().debounceImmediate(5000).onValue(sendit => {
-          sendAnchorAlarm(sendit,app)
-        })
+    debug(typeof app.config.defaults.vessels.self)
+    try
+    {
+      _.forIn(app.config.defaults.vessels.self, function(value, this_key) {
+        meta_iterator(app, null, value, this_key)
+      })
     } catch (e) {
       plugin.started = false
       debug("error: " + e);
@@ -66,12 +56,12 @@ module.exports = function(app) {
     debug("stopped")
   }
   
-  plugin.id = "anchoralarm"
-  plugin.name = "Anchor Alarm"
+  plugin.id = "meta-alarms"
+  plugin.name = "Meta Alarms"
   plugin.description = "Plugin that checks the vessel possition to see if there's anchor drift"
 
   plugin.schema = {
-    title: "Anchor Alarm",
+    title: "Meta Alarms",
     type: "object",
     required: [
       "radius"
@@ -88,50 +78,84 @@ module.exports = function(app) {
   return plugin;
 }
 
-function calc_distance(lat1,lon1,lat2,lon2) {
-  var R = 6371000; // Radius of the earth in m
-  var dLat = degsToRad(lat2-lat1);  // deg2rad below
-  var dLon = degsToRad(lon2-lon1); 
-  var a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(degsToRad(lat1)) * Math.cos(degsToRad(lat2)) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2)
-    ; 
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  var d = R * c; // Distance in km
-  return d;
+function meta_iterator(app, parent, value, key)
+{
+  if ( value.meta )
+  {
+    if ( value.meta.zones )
+    {
+      var path = parent + "." + key
+
+      var unsubscribe = Bacon.combineWith(function(current) {
+        //debug("got: " + path + " = " + current)
+        var res = checkAlarm(app, path, value.meta.zones, current)
+        return res
+      }, [ path ].map(app.streambundle.getOwnStream, app.streambundle)).changes().debounceImmediate(1000).onValue(sendit => {
+        sendAlarm(app, sendit)
+      })
+    }
+  }
+  else if ( "object" == typeof value )
+  {
+    _.forIn(value, function(value, this_key) {
+      var parent_key = parent != null ? parent + "." + key : key 
+      meta_iterator(app, parent_key, value, this_key)
+    })
+  }
 }
 
+function checkAlarm(app, path, zones, value)
+{
+  var last_upper
+  var last_lower
+  var alarm = null
 
-function checkPosition(radius, possition, anchor_position) {
-  debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
+  state_zones = zones.filter(function(zone) {
+    return zone['state']
+  });
+                            
+  all = state_zones.filter(function(zone) {
+    //debug(path + ": " + zone.lower + "," + zone.upper + ", " + value)
+    return (zone.lower == null || value >= zone.lower)
+      && (zone.upper == null || value < zone.upper) 
+  })
 
-  
-  var meters = calc_distance(possition.latitude, possition.longitude,
-                             anchor_position.latitude, anchor_position.longitude);
-
-  debug("distance: " + meters);
-  
-  return meters > radius;
+  var zone
+  if ( all.length > 0 )
+  {
+    zone = all[all.length-1]
+  }
+  return createAlarm(app, path, zone, value)
 }
 
-function getAnchorAlarmDelta(app, state)
+function alarmKeyFromPath(path)
+{
+  var parts = path.split('.')
+  var res = parts[0]
+  for ( var i = 1; i < parts.length; i++ )
+  {
+    res = res + parts[i].charAt(0).toUpperCase() + parts[i].slice(1);
+  }
+  return res
+}
+
+function getAlarmDelta(app, path, state, message)
 {
   var delta = {
       "context": "vessels." + app.selfId,
       "updates": [
         {
           "source": {
-            "label": "anchoralarm"
+            "label": "meta-alarms-plugin"
           },
           "timestamp": (new Date()).toISOString(),
           "values": [
             {
-              "path": "notifications.anchorAlarm",
+              "path": path,
               "value": {
                 "state": state,
                 "methods": [ "visual", "sound" ],
-                "message": "Anchor Alarm",
+                "message": message,
                 "timestamp": (new Date()).toISOString()
               }
             }]
@@ -141,25 +165,36 @@ function getAnchorAlarmDelta(app, state)
   return delta;
 }
 
-function sendAnchorAlarm(sendit, app)
+
+function createAlarm(app, path, zone, value)
 {
-  if ( sendit )
+  var notificationPath = "notifications." + alarmKeyFromPath(path)
+
+  var existing = _.get(app.signalk.self, notificationPath)
+
+  var state = zone ? zone.state : 'normal'
+  
+  if ( existing && existing.state == state )
+    return null
+  else if ( !existing && state == 'normal' )
+    return null
+  
+  var message
+  if ( zone )
+    message = zone.message
+
+  if ( typeof message === 'undefined' )
+    message = path + " is " + value
+  
+  return getAlarmDelta(app, notificationPath, state, message)
+}
+
+function sendAlarm(app, delta)
+{
+  if ( delta )
   {
-    debug("send alarm")
-    var delta = getAnchorAlarmDelta(app, "alarm")
+    debug("sendAlarm: " + util.inspect(delta, {showHidden: false, depth: null}))
     app.signalk.addDelta(delta)
   }
 }
 
-function radsToDeg(radians) {
-  return radians * 180 / Math.PI
-}
-
-function degsToRad(degrees) {
-  return degrees * (Math.PI/180.0);
-}
-
-
-function mpsToKn(mps) {
-  return 1.9438444924574 * mps
-}
