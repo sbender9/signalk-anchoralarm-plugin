@@ -42,12 +42,13 @@ module.exports = function(app) {
           var was_sent = alarm_sent
           alarm_sent = res
           return res && !was_sent
-        }}, ['navigation.position' ].map(app.streambundle.getOwnStream, app.streambundle)).changes().debounceImmediate(5000).onValue(sendit => {
+        }}, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(5000).onValue(sendit => {
           sendAnchorAlarm(sendit,app)
         })
     } catch (e) {
       plugin.started = false
       debug("error: " + e);
+      console.log(e.stack)
       return e
     }
     debug("started")
