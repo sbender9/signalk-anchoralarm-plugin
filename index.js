@@ -24,6 +24,7 @@ module.exports = function(app) {
   var anchor_position
   var alarm_sent = false
   var unsubscribe = undefined
+  var state
 
   plugin.start = function(props) {
     debug("starting with radius: " + props.radius)
@@ -43,7 +44,7 @@ module.exports = function(app) {
           alarm_sent = res
           return res && !was_sent
         }}, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(5000).onValue(sendit => {
-          sendAnchorAlarm(sendit,app)
+          sendAnchorAlarm(sendit,app, props.state)
         })
     } catch (e) {
       plugin.started = false
@@ -56,11 +57,13 @@ module.exports = function(app) {
 
   plugin.stop = function() {
     debug("stopping")
+    anchor_position = null
     if ( alarm_sent )
     {
       var delta = getAnchorAlarmDelta(app, "normal")
       app.signalk.addDelta(delta)
     }
+    alarm_sent = false
     if (unsubscribe) {
       unsubscribe()
     }
@@ -82,7 +85,13 @@ module.exports = function(app) {
         type: "string",
         title: "Radius (m)",
         default: "60"
-      }
+      },
+      state: {
+        title: "Alarm State",
+        type: "string",
+        default: "emergency",
+        "enum": ["alert", "warn", "alarm", "emergency"]
+      }      
     }
   }
 
@@ -99,7 +108,7 @@ function calc_distance(lat1,lon1,lat2,lon2) {
     Math.sin(dLon/2) * Math.sin(dLon/2)
     ; 
   var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  var d = R * c; // Distance in km
+  var d = R * c; // Distance in m
   return d;
 }
 
@@ -142,12 +151,12 @@ function getAnchorAlarmDelta(app, state)
   return delta;
 }
 
-function sendAnchorAlarm(sendit, app)
+function sendAnchorAlarm(sendit, app, state)
 {
   if ( sendit )
   {
-    debug("send alarm")
-    var delta = getAnchorAlarmDelta(app, "alarm")
+    var delta = getAnchorAlarmDelta(app, state)
+    debug("send alarm: " + util.inspect(delta, {showHidden: false, depth: 6}))
     app.signalk.addDelta(delta)
   }
 }
