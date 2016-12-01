@@ -228,7 +228,11 @@ module.exports = function(app) {
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
 
-      var maxRadius = (depth * depth) + (rode * rode)
+      var maxRadius = rode;
+
+      if ( depth != 0 )
+        maxRadius = (depth * depth) + (rode * rode)
+      
       maxRadius = Math.sqrt(maxRadius)
 
       debug("heading: " + heading)
@@ -378,8 +382,8 @@ function getAnchorAlarmDelta(app, state)
               "path": "notifications.anchorAlarm",
               "value": {
                 "state": state,
-                "methods": [ "visual", "sound" ],
-                "message": "Anchor Alarm",
+                "method": [ "visual", "sound" ],
+                "message": "Anchor Alarm - " + state.charAt(0).toUpperCase() + state.slice(1),
                 "timestamp": (new Date()).toISOString()
               }
             }]
