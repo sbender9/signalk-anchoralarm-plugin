@@ -56,11 +56,11 @@ module.exports = function(app) {
     if ( alarm_sent )
     {
       var delta = getAnchorAlarmDelta(app, "normal")
-      app.signalk.addDelta(delta)
+      app.handleMessage(plugin.id, delta)
     }
     alarm_sent = false
-    var delta = getAnchorDelta(app, null, null, null)
-    app.signalk.addDelta(delta)
+    var delta = getAnchorDelta(app, null, null, null, false, null)
+    app.handleMessage(plugin.id, delta)
     if (unsubscribe) {
       unsubscribe()
       unsubscribe = null
@@ -72,7 +72,7 @@ module.exports = function(app) {
   {
     unsubscribe = Bacon.combineWith(function(position) {
       var res = false
-      res = checkPosition(app, configuration.radius,
+      res = checkPosition(app, plugin, configuration.radius,
                           position, configuration.position)
       var was_sent = alarm_sent
       alarm_sent = res
@@ -81,17 +81,17 @@ module.exports = function(app) {
         //clear it
         debug("clear_it")
         var delta = getAnchorAlarmDelta(app, "normal")
-        app.signalk.addDelta(delta)
+        app.handleMessage(plugin.id, delta)
       }
       return res && !was_sent
     }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(sendit => {
-      sendAnchorAlarm(sendit,app, configuration.state)
+      sendAnchorAlarm(sendit,app, plugin, configuration.state)
     })
   }
 
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
-      position = _.get(app.signalk.self, 'navigation.position')
+      var position = _.get(app.signalk.self, 'navigation.position')
       if ( typeof position == 'undefined' )
       {
         debug("no position available")
@@ -118,8 +118,8 @@ module.exports = function(app) {
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
           radius = null
-        var delta = getAnchorDelta(app, position, 0, radius, true);
-        app.signalk.addDelta(delta)
+        var delta = getAnchorDelta(app, position, 0, radius, true, null);
+        app.handleMessage(plugin.id, delta)
         
         var config = readJson(app, plugin.id)
         debug("config: " + util.inspect(config, {showHidden: false, depth: 6}))
@@ -160,8 +160,8 @@ module.exports = function(app) {
         debug("set anchor radius: " + radius)
 
         var delta = getAnchorDelta(app, configuration.position, radius,
-                                   radius, false);
-        app.signalk.addDelta(delta)
+                                   radius, false, null);
+        app.handleMessage(plugin.id, delta)
         
         var config = readJson(app, plugin.id)
         configuration = config["configuration"]
@@ -175,13 +175,13 @@ module.exports = function(app) {
     router.post("/raiseAnchor", (req, res) => {
       debug("raise anchor")
       
-      var delta = getAnchorDelta(app, null, null, null)
-      app.signalk.addDelta(delta)
+      var delta = getAnchorDelta(app, null, null, null, false, null)
+      app.handleMessage(plugin.id, delta)
 
       if ( alarm_sent )
       {
         var delta = getAnchorAlarmDelta(app, "normal")
-        app.signalk.addDelta(delta)
+        app.handleMessage(plugin.id, delta)
       }
       alarm_sent = false
       
@@ -228,12 +228,26 @@ module.exports = function(app) {
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
 
+      debug("anchor rode: " + rode + " depth: " + depth)
+
       var maxRadius = rode;
 
+      if ( depth == 0 )
+      {
+        var sd = _.get(app.signalk.self,
+		       'environment.depth.belowSurface.value')
+        if ( typeof sd != 'undefined' )
+        {
+          depth = sd
+        }
+      }
+
       if ( depth != 0 )
-        maxRadius = (depth * depth) + (rode * rode)
-      
-      maxRadius = Math.sqrt(maxRadius)
+      {
+        //maxRadius = (depth * depth) + (rode * rode)
+        maxRadius = (rode * rode) - (depth *depth)
+        maxRadius = Math.sqrt(maxRadius)
+      }
 
       debug("heading: " + heading)
       debug("maxRadius: " + maxRadius)
@@ -263,11 +277,9 @@ module.exports = function(app) {
       */
       var newposition = calc_position_from(position, heading, maxRadius)
 
-      newposition['altitude'] = depth * -1;
-
       var delta = getAnchorDelta(app, newposition, maxRadius,
-                                 maxRadius, false);
-      app.signalk.addDelta(delta)
+                                 maxRadius, true, depth);
+      app.handleMessage(plugin.id, delta)
       
       var config = readJson(app, plugin.id)
       configuration = config["configuration"]
@@ -332,7 +344,7 @@ function calc_distance(lat1,lon1,lat2,lon2) {
   return d;
 }
 
-function calc_position_from(possition, heading, distance)
+function calc_position_from(position, heading, distance)
 {
   var dist = (distance / 1000) / 1.852  //m to nm
   dist /= (180*60/Math.PI)  // in radians
@@ -352,7 +364,7 @@ function calc_position_from(possition, heading, distance)
 }
   
 
-function checkPosition(app, radius, possition, anchor_position) {
+function checkPosition(app, plugin, radius, possition, anchor_position) {
   //debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
 
   
@@ -362,7 +374,7 @@ function checkPosition(app, radius, possition, anchor_position) {
   debug("distance: " + meters + ", radius: " + radius);
 
   var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
-  app.signalk.addDelta(delta)
+  app.handleMessage(plugin.id, delta)
   
   return radius != null &&  meters > radius;
 }
@@ -394,7 +406,7 @@ function getAnchorAlarmDelta(app, state)
 }
 
 function getAnchorDelta(app, position,
-                        currentRadius, maxRadius, isSet)
+                        currentRadius, maxRadius, isSet, depth)
 {
   var value = null
 
@@ -440,8 +452,11 @@ function getAnchorDelta(app, position,
   {
     if ( isSet )
     {
-      var depth = _.get(app.signalk.self,
-		        'environment.depth.belowSurface.value')
+      if ( !depth )
+      {
+        depth = _.get(app.signalk.self,
+		      'environment.depth.belowSurface.value')
+      }
       debug("depth: " + util.inspect(depth, {showHidden: false, depth: 6}))
       if ( typeof depth != 'undefined' )
       {
@@ -464,13 +479,13 @@ function getAnchorDelta(app, position,
   return delta;
 }
 
-function sendAnchorAlarm(sendit, app, state)
+function sendAnchorAlarm(sendit, app, plugin, state)
 {
   if ( sendit )
   {
     var delta = getAnchorAlarmDelta(app, state)
     debug("send alarm: " + util.inspect(delta, {showHidden: false, depth: 6}))
-    app.signalk.addDelta(delta)
+    app.handleMessage(plugin.id, delta)
   }
 }
 
