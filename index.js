@@ -315,7 +315,7 @@ module.exports = function(app) {
       radius: {
         type: "number",
         title: "Radius (m)",
-        default: "60"
+        default: 60
       },
       state: {
         title: "Alarm State",
@@ -408,48 +408,15 @@ function getAnchorAlarmDelta(app, state)
 function getAnchorDelta(app, position,
                         currentRadius, maxRadius, isSet, depth)
 {
-  var value = null
+  var values
 
   if ( position )
   {
-    value = {
-      "position": {
-        "latitude": position.latitude,
-        "longitude": position.longitude
-      },
-      "currentRadius": { "value": currentRadius },
-      "maxRadius":  { "value": maxRadius },
-      "timestamp": (new Date()).toISOString()
-    }
-  }
-  else
-  {
-    value = {
-      "position": null,
-      "currentRadius": null,
-      "maxRadius": null
-    }
-  }
-
-  var delta = {
-      "context": "vessels." + app.selfId,
-      "updates": [
-        {
-          "source": {
-            "label": "anchoralarm"
-          },
-          "timestamp": (new Date()).toISOString(),
-          "values": [
-            {
-              "path": "navigation.anchor",
-              "value": value
-            }]
-        }
-      ]
-  }
-
-  if ( position )
-  {
+    var position = {
+      "latitude": position.latitude,
+      "longitude": position.longitude
+    };
+    
     if ( isSet )
     {
       if ( !depth )
@@ -460,7 +427,7 @@ function getAnchorDelta(app, position,
       debug("depth: " + util.inspect(depth, {showHidden: false, depth: 6}))
       if ( typeof depth != 'undefined' )
       {
-        delta['updates'][0]['values'][0]['value']['position']['altitude'] = -1 * depth
+        position.altitude = -1 * depth
       }
     }
     else
@@ -469,12 +436,69 @@ function getAnchorDelta(app, position,
 		        'navigation.anchor.position.altitude')
       if ( typeof depth != 'undefined' )
       {
-        delta['updates'][0]['values'][0]['value']['position']['altitude'] = depth
+        position.altitude = depth
       }
     }  
+  
+    values = [
+      {
+        path: "navigation.anchor.position",
+        value: position
+      },
+      {
+        path: 'navigation.anchor.currentRadius',
+        value: currentRadius
+      },
+      {
+        path: 'navigation.anchor.maxRadius',
+        value: maxRadius
+      },
+      /*
+      {
+        path: 'navigation.anchor.state',
+        value: 'on'
+      }
+      */
+    ]
+  }
+  else
+  {
+    values = [
+      {
+        path: 'navigation.anchor.position',
+        value: { latitude: null, longitude: null, altitude: null }
+      },
+      {
+        path: 'navigation.anchor.currentRadius',
+        value: null
+      },
+      {
+        path: 'navigation.anchor.maxRadius',
+        value: null
+      },
+      /*
+      {
+        path: 'navigation.anchor.state',
+        value: 'off'
+      }
+      */
+    ]
   }
 
-  //debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
+  var delta = {
+      "context": "vessels." + app.selfId,
+      "updates": [
+        {
+          "source": {
+            "label": "anchoralarm"
+          },
+          "timestamp": (new Date()).toISOString(),
+          "values": values
+        }
+      ]
+  }
+
+  debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
   
   return delta;
 }
@@ -506,9 +530,10 @@ function mpsToKn(mps) {
 }
 
 function pathForPluginId(app, id) {
-  return path.join(app.config.appPath, "/plugin-config-data", id + '.json')
+    var dir = app.config.configPath || app.config.appPath
+  return path.join(dir, "/plugin-config-data", id + '.json')
 }
-  
+
 function readJson(app, id) {
   try
   {
