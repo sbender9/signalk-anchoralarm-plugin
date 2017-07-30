@@ -105,7 +105,7 @@ module.exports = function(app) {
         debug("heading: " + heading)
         if ( typeof heading != 'undefined' )
         {
-          var gps_dist = _.get(app.signalk.self, "design.gpsDistaneFromAnchorDrop");
+          var gps_dist = _.get(app.signalk.self, "sensors.gps.fromBow.value");
           debug("gps_dist: " + gps_dist)
           if ( typeof gps_dist != 'undefined' )
           {
@@ -113,7 +113,7 @@ module.exports = function(app) {
             debug("adjusted position by " + gps_dist)
           }
         }
-        
+  
         debug("set anchor position to: " + position.latitude + " " + position.longitude)
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
@@ -129,6 +129,12 @@ module.exports = function(app) {
                                       "longitude": position.longitude }
         configuration["radius"] = radius
         configuration["on"] = true
+
+        var depth = _.get(app.signalk.self,
+		          'environment.depth.belowSurface.value')
+        if ( depth ) {
+          configuration.position.altitude = depth * -1;
+        }
         
         saveJson(app, plugin.id, config, res)
         if ( unsubscribe == null )
@@ -154,6 +160,12 @@ module.exports = function(app) {
                                  configuration.position.longitude,
                                  position.latitude,
                                  position.longitude)
+          
+          var fudge = configuration.fudge
+          if ( typeof fudge !== 'undefined' && fudge > 0 )
+          {
+            radius += fudge
+          }
           debug("calc_distance: " + radius)
         }
 
@@ -244,19 +256,35 @@ module.exports = function(app) {
 
       if ( depth != 0 )
       {
+        var height = configuration.bowHeight;
+        var heightFromBow = depth
+        if ( typeof height !== 'undefined' && height > 0 )
+        {
+          heightFromBow += height
+        }
         //maxRadius = (depth * depth) + (rode * rode)
-        maxRadius = (rode * rode) - (depth *depth)
+        maxRadius = (rode * rode) - (height *height)
         maxRadius = Math.sqrt(maxRadius)
       }
 
+      debug("depth: " + depth)      
       debug("heading: " + heading)
       debug("maxRadius: " + maxRadius)
 
-      var gps_dist = _.get(app.signalk.self, "design.gpsDistaneFromAnchorDrop");
+      var gps_dist = _.get(app.signalk.self, "sensors.gps.fromBow.value");
       if ( typeof gps_dist != 'undefined' )
       {
         maxRadius += gps_dist
       }
+
+      var curRadius = maxRadius
+      var fudge = configuration['fudge']
+      if ( typeof fudge !== 'undefined' && fudge > 0 )
+      {
+        debug("fudge radius by " + fudge)
+        maxRadius += fudge
+      }
+
       /*
       var dist = (maxRadius / 1000) / 1.852
       dist /= (180*60/Math.PI)  // in radians
@@ -275,9 +303,9 @@ module.exports = function(app) {
                           "longitude": radsToDeg(lon),
                           "altitude": depth * -1 }
       */
-      var newposition = calc_position_from(position, heading, maxRadius)
+      var newposition = calc_position_from(position, heading, curRadius)
 
-      var delta = getAnchorDelta(app, newposition, maxRadius,
+      var delta = getAnchorDelta(app, newposition, curRadius,
                                  maxRadius, true, depth);
       app.handleMessage(plugin.id, delta)
       
@@ -288,6 +316,10 @@ module.exports = function(app) {
       configuration["on"] = true
       configuration["radius"] = maxRadius
       configuration["position"] = newposition
+
+      if ( depth ) {
+        configuration.position.altitude = depth * -1
+      }
         
       saveJson(app, plugin.id, config, res)
       if ( unsubscribe == null )
@@ -297,7 +329,7 @@ module.exports = function(app) {
     
   plugin.id = "anchoralarm"
   plugin.name = "Anchor Alarm"
-  plugin.description = "Plugin that checks the vessel possition to see if there's anchor drift"
+  plugin.description = "Plugin that checks the vessel position to see if there's anchor drift"
 
   plugin.schema = {
     title: "Anchor Alarm",
@@ -314,11 +346,42 @@ module.exports = function(app) {
       },
       radius: {
         type: "number",
-        title: "Radius (m)",
+        title: "Alarm Radius (m)",
         default: 60
       },
+      position: {
+        type: "object",
+        title: "Anchor Position",
+        properties: {
+          latitude: {
+            title: "Latitude",
+            type: "number"
+          },
+          longitude: {
+            title: "Longitude",
+            type: "number"
+          },
+          altitude: {
+            title: "Altitude",
+            type: "number"
+          }
+        }
+      },
+      fudge: {
+        type: "number",
+        title: "Alarm Radius Fudge Factor (m)",
+        description: "When setting an automatic alarm, this will be added to the larm radius to handle gps accuracy or slightly off anchor location",
+        default: 0
+      },
+      bowHeight: {
+        type: "number",
+        title: "The height of the bow from the water (m)",
+        description: "This is used to calculate rode length",
+        default: 0
+      },
       state: {
-        title: "Alarm State",
+        title: "State",
+        description: "When an anchor drift notifcation is sent, this wil be used as the notitication state",
         type: "string",
         default: "emergency",
         "enum": ["alert", "warn", "alarm", "emergency"]
@@ -326,6 +389,130 @@ module.exports = function(app) {
     }
   }
 
+  function getAnchorDelta(app, position,
+                          currentRadius, maxRadius, isSet, depth)
+  {
+    var values
+
+    if ( position )
+    {
+      var position = {
+        "latitude": position.latitude,
+        "longitude": position.longitude
+      };
+      
+      if ( isSet )
+      {
+        if ( !depth )
+        {
+          depth = _.get(app.signalk.self,
+		        'environment.depth.belowSurface.value')
+        }
+        debug("depth: " + util.inspect(depth, {showHidden: false, depth: 6}))
+        if ( typeof depth != 'undefined' )
+        {
+          position.altitude = -1 * depth
+        }
+      }
+      else
+      {
+        var depth = configuration.position.altitude
+            //_.get(app.signalk.self,
+	//	          'navigation.anchor.position.altitude')
+        if ( typeof depth != 'undefined' )
+        {
+          position.altitude = depth
+        }
+      }  
+      
+      values = [
+        {
+          path: "navigation.anchor.position",
+          value: position
+        },
+        {
+          path: 'navigation.anchor.currentRadius',
+          value: currentRadius
+        },
+        {
+          path: 'navigation.anchor.maxRadius',
+          value: maxRadius
+        },
+        /*
+          {
+          path: 'navigation.anchor.state',
+          value: 'on'
+          }
+        */
+      ]
+      if ( typeof configuration.bowHeight !== 'undefined' ) {
+        values.push({
+          path: 'design.bowAnchorHight',
+          value: configuration.bowHeight});
+      }
+      if ( typeof configuration.fudge !== 'undefined' ) {
+        values.push({
+          path: 'navigation.anchor.fudgeFactor',
+          value: configuration.fudge});
+      }
+    }
+    else
+    {
+      values = [
+        {
+          path: 'navigation.anchor.position',
+          value: { latitude: null, longitude: null, altitude: null }
+        },
+        {
+          path: 'navigation.anchor.currentRadius',
+          value: null
+        },
+        {
+          path: 'navigation.anchor.maxRadius',
+          value: null
+        },
+        /*
+          {
+          path: 'navigation.anchor.state',
+          value: 'off'
+          }
+        */
+      ]
+    }
+
+    var delta = {
+      "context": "vessels." + app.selfId,
+      "updates": [
+        {
+          "source": {
+            "label": "anchoralarm"
+          },
+          "timestamp": (new Date()).toISOString(),
+          "values": values
+        }
+      ]
+    }
+
+    //debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
+    return delta;
+  }
+
+
+  function checkPosition(app, plugin, radius, possition, anchor_position) {
+    //debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
+
+    var meters = calc_distance(possition.latitude, possition.longitude,
+                               anchor_position.latitude, anchor_position.longitude);
+    
+    debug("distance: " + meters + ", radius: " + radius);
+    
+    var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
+    app.handleMessage(plugin.id, delta)
+  
+    return radius != null &&  meters > radius;
+  }
+
+   
   return plugin;
 }
 
@@ -363,22 +550,6 @@ function calc_position_from(position, heading, distance)
            "longitude": radsToDeg(lon) }
 }
   
-
-function checkPosition(app, plugin, radius, possition, anchor_position) {
-  //debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
-
-  
-  var meters = calc_distance(possition.latitude, possition.longitude,
-                             anchor_position.latitude, anchor_position.longitude);
-
-  debug("distance: " + meters + ", radius: " + radius);
-
-  var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
-  app.handleMessage(plugin.id, delta)
-  
-  return radius != null &&  meters > radius;
-}
-
 function getAnchorAlarmDelta(app, state)
 {
   var delta = {
@@ -402,104 +573,6 @@ function getAnchorAlarmDelta(app, state)
         }
       ]
   }
-  return delta;
-}
-
-function getAnchorDelta(app, position,
-                        currentRadius, maxRadius, isSet, depth)
-{
-  var values
-
-  if ( position )
-  {
-    var position = {
-      "latitude": position.latitude,
-      "longitude": position.longitude
-    };
-    
-    if ( isSet )
-    {
-      if ( !depth )
-      {
-        depth = _.get(app.signalk.self,
-		      'environment.depth.belowSurface.value')
-      }
-      debug("depth: " + util.inspect(depth, {showHidden: false, depth: 6}))
-      if ( typeof depth != 'undefined' )
-      {
-        position.altitude = -1 * depth
-      }
-    }
-    else
-    {
-      var depth = _.get(app.signalk.self,
-		        'navigation.anchor.position.altitude')
-      if ( typeof depth != 'undefined' )
-      {
-        position.altitude = depth
-      }
-    }  
-  
-    values = [
-      {
-        path: "navigation.anchor.position",
-        value: position
-      },
-      {
-        path: 'navigation.anchor.currentRadius',
-        value: currentRadius
-      },
-      {
-        path: 'navigation.anchor.maxRadius',
-        value: maxRadius
-      },
-      /*
-      {
-        path: 'navigation.anchor.state',
-        value: 'on'
-      }
-      */
-    ]
-  }
-  else
-  {
-    values = [
-      {
-        path: 'navigation.anchor.position',
-        value: { latitude: null, longitude: null, altitude: null }
-      },
-      {
-        path: 'navigation.anchor.currentRadius',
-        value: null
-      },
-      {
-        path: 'navigation.anchor.maxRadius',
-        value: null
-      },
-      /*
-      {
-        path: 'navigation.anchor.state',
-        value: 'off'
-      }
-      */
-    ]
-  }
-
-  var delta = {
-      "context": "vessels." + app.selfId,
-      "updates": [
-        {
-          "source": {
-            "label": "anchoralarm"
-          },
-          "timestamp": (new Date()).toISOString(),
-          "values": values
-        }
-      ]
-  }
-
-  debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
-  
   return delta;
 }
 
