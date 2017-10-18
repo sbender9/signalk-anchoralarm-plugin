@@ -370,7 +370,7 @@ module.exports = function(app) {
       fudge: {
         type: "number",
         title: "Alarm Radius Fudge Factor (m)",
-        description: "When setting an automatic alarm, this will be added to the larm radius to handle gps accuracy or slightly off anchor location",
+        description: "When setting an automatic alarm, this will be added to the alarm radius to handle gps accuracy or a slightly off anchor position",
         default: 0
       },
       bowHeight: {
