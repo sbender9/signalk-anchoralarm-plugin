@@ -1,6 +1,7 @@
 # signalk-anchoralarm-plugin
 
 [![Greenkeeper badge](https://badges.greenkeeper.io/sbender9/signalk-anchoralarm-plugin.svg)](https://greenkeeper.io/)
+
 SignalK Node Server Anchor Alarm Plugin
 
 To install, cd to your signalk-node-server directory and run:
