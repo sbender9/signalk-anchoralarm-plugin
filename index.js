@@ -92,6 +92,9 @@ module.exports = function(app) {
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
       var position = _.get(app.signalk.self, 'navigation.position')
+      if ( position.value )
+        position = position.value
+      
       if ( typeof position == 'undefined' )
       {
         debug("no position available")
@@ -144,6 +147,8 @@ module.exports = function(app) {
     
     router.post("/setRadius", (req, res) => {
       position = _.get(app.signalk.self, 'navigation.position')
+      if ( position.value )
+        position = position.value
       if ( typeof position == 'undefined' )
       {
         debug("no position available")
@@ -211,10 +216,32 @@ module.exports = function(app) {
       }
     })
 
+    router.post("/setAnchorPosition", (req, res) => {
+      var position = req.body['position']
+
+      var maxRadius = _.get(app.signalk.self, 'navigation.anchor.maxRadius.value')
+
+      var delta = getAnchorDelta(app, position, null,
+                                 maxRadius, false);
+
+      debug("setAnchorPosition: " + JSON.stringify(delta))
+      app.handleMessage(plugin.id, delta)
+
+      var config = readJson(app, plugin.id)
+      configuration = config["configuration"]
+      
+      configuration["position"] = { "latitude": position.latitude,
+                                    "longitude": position.longitude }
+      
+      saveJson(app, plugin.id, config, res)
+    });
+
     router.post("/setManualAnchor", (req, res) => {
       debug("set manual anchor")
 
-      position = _.get(app.signalk.self, 'navigation.position')
+      var position = _.get(app.signalk.self, 'navigation.position')
+      if ( position.value )
+        position = position.value
       if ( typeof position == 'undefined' )
       {
         debug("no position available")
@@ -285,24 +312,6 @@ module.exports = function(app) {
         maxRadius += fudge
       }
 
-      /*
-      var dist = (maxRadius / 1000) / 1.852
-      dist /= (180*60/Math.PI)  // in radians
-
-      debug("dist: " + dist)
-
-      heading = (Math.PI*2)-heading
-
-      var lat = Math.asin(Math.sin(degsToRad(position.latitude)) * Math.cos(dist) + Math.cos(degsToRad(position.latitude)) * Math.sin(dist) * Math.cos(heading))
-      
-      var dlon = Math.atan2(Math.sin(heading) * Math.sin(dist) * Math.cos(degsToRad(position.latitude)), Math.cos(dist) - Math.sin(degsToRad(position.latitude)) * Math.sin(lat))
-      
-      var lon = mod(degsToRad(position.longitude) - dlon + Math.PI, 2 * Math.PI) - Math.PI
-      
-      var newposition = { "latitude": radsToDeg(lat),
-                          "longitude": radsToDeg(lon),
-                          "altitude": depth * -1 }
-      */
       var newposition = calc_position_from(position, heading, curRadius)
 
       var delta = getAnchorDelta(app, newposition, curRadius,
@@ -324,6 +333,7 @@ module.exports = function(app) {
       saveJson(app, plugin.id, config, res)
       if ( unsubscribe == null )
         startWatchingPosistion()
+
     })
   }
     
@@ -433,11 +443,7 @@ module.exports = function(app) {
         {
           path: 'navigation.anchor.currentRadius',
           value: currentRadius
-        },
-        {
-          path: 'navigation.anchor.maxRadius',
-          value: maxRadius
-        },
+        }
         /*
           {
           path: 'navigation.anchor.state',
@@ -445,6 +451,12 @@ module.exports = function(app) {
           }
         */
       ]
+      if ( maxRadius != null ) {
+        values.push({
+          path: 'navigation.anchor.maxRadius',
+          value: maxRadius
+        })
+      }
       if ( typeof configuration.bowHeight !== 'undefined' ) {
         values.push({
           path: 'design.bowAnchorHight',
