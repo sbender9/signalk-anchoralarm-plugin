@@ -123,6 +123,8 @@ module.exports = function(app) {
           radius = null
         var delta = getAnchorDelta(app, position, 0, radius, true, null);
         app.handleMessage(plugin.id, delta)
+
+        debug("anchor delta: " + JSON.stringify(delta))
         
         var config = readJson(app, plugin.id)
         debug("config: " + util.inspect(config, {showHidden: false, depth: 6}))
