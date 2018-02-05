@@ -9,16 +9,17 @@
   "keywords": [
     "signalk-node-server-plugin"
   ],
-  "author": {"name": "Scott Bender", "email": "scott@scottbender.net"},
+  "author": {
+    "name": "Scott Bender",
+    "email": "scott@scottbender.net"
+  },
   "license": "ISC",
   "dependencies": {
     "baconjs": "^0.7.88",
-    "debug": "^3.1.0",
     "lodash": "^4.17.4"
   },
   "repository": {
-    "type" : "git",
-    "url" : "https://github.com/sbender9/signalk-anchoralarm-plugin"
+    "type": "git",
+    "url": "https://github.com/sbender9/signalk-anchoralarm-plugin"
   }
-
 }

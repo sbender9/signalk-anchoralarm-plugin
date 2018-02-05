@@ -13,9 +13,7 @@
  * limitations under the License.
  */
 
-const debug = require('debug')('anchoralarm')
 const Bacon = require('baconjs');
-const util = require('util')
 const _ = require('lodash')
 const path = require('path')
 const fs = require('fs')
@@ -28,7 +26,6 @@ module.exports = function(app) {
   var configuration
 
   plugin.start = function(props) {
-    debug("starting with config: " + util.inspect(props, {showHidden: false, depth: 6}))
     configuration = props
     try {
       var isOn = configuration['on']
@@ -44,15 +41,13 @@ module.exports = function(app) {
       
     } catch (e) {
       plugin.started = false
-      debug("error: " + e);
-      console.log(e.stack)
+      app.error("error: " + e);
+      console.error(e.stack)
       return e
     }
-    debug("started")
   }
 
   plugin.stop = function() {
-    debug("stopping: alarm_sent: " + alarm_sent)
     if ( alarm_sent )
     {
       var delta = getAnchorAlarmDelta(app, "normal")
@@ -65,7 +60,6 @@ module.exports = function(app) {
       unsubscribe()
       unsubscribe = null
     }
-    debug("stopped")
   }
 
   function startWatchingPosistion()
@@ -79,7 +73,7 @@ module.exports = function(app) {
       if ( was_sent && !res )
       {
         //clear it
-        debug("clear_it")
+        app.debug("clear_it")
         var delta = getAnchorAlarmDelta(app, "normal")
         app.handleMessage(plugin.id, delta)
       }
@@ -91,43 +85,43 @@ module.exports = function(app) {
 
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
-      var position = _.get(app.signalk.self, 'navigation.position')
+      var position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       
       if ( typeof position == 'undefined' )
       {
-        debug("no position available")
+        app.debug("no position available")
         res.status(401)
         res.send("no position available")
       }
       else
       {
 
-        var heading = _.get(app.signalk.self, 'navigation.headingTrue.value')
-        debug("heading: " + heading)
+        var heading = app.getSelfPath('navigation.headingTrue.value')
+        app.debug("heading: " + heading)
         if ( typeof heading != 'undefined' )
         {
-          var gps_dist = _.get(app.signalk.self, "sensors.gps.fromBow.value");
-          debug("gps_dist: " + gps_dist)
+          var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
+          app.debug("gps_dist: " + gps_dist)
           if ( typeof gps_dist != 'undefined' )
           {
             position = calc_position_from(position, heading, gps_dist)
-            debug("adjusted position by " + gps_dist)
+            app.debug("adjusted position by " + gps_dist)
           }
         }
   
-        debug("set anchor position to: " + position.latitude + " " + position.longitude)
+        app.debug("set anchor position to: " + position.latitude + " " + position.longitude)
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
           radius = null
         var delta = getAnchorDelta(app, position, 0, radius, true, null);
         app.handleMessage(plugin.id, delta)
 
-        debug("anchor delta: " + JSON.stringify(delta))
+        app.debug("anchor delta: " + JSON.stringify(delta))
         
-        var config = readJson(app, plugin.id)
-        debug("config: " + util.inspect(config, {showHidden: false, depth: 6}))
+        var config = app.readPluginOptions()
+        app.debug("config: %o", config)
         configuration = config["configuration"]
 
         configuration["position"] = { "latitude": position.latitude,
@@ -135,25 +129,32 @@ module.exports = function(app) {
         configuration["radius"] = radius
         configuration["on"] = true
 
-        var depth = _.get(app.signalk.self,
-		          'environment.depth.belowSurface.value')
+        var depth = app.getSelfPath('environment.depth.belowSurface.value')
         if ( depth ) {
           configuration.position.altitude = depth * -1;
         }
         
-        saveJson(app, plugin.id, config, res)
+        app.savePluginOptions(config, err => {
+          if ( err ) {
+            app.error(err.toString())
+            res.status(500)
+            res.send("can't save config")
+          } else {
+            res.send('ok')
+          }
+        })
         if ( unsubscribe == null )
           startWatchingPosistion()
       }
     })
     
     router.post("/setRadius", (req, res) => {
-      position = _.get(app.signalk.self, 'navigation.position')
+      position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       if ( typeof position == 'undefined' )
       {
-        debug("no position available")
+        app.debug("no position available")
         res.status(401)
         res.send("no position available")
       }
@@ -162,7 +163,7 @@ module.exports = function(app) {
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
         {
-          debug("config: " + util.inspect(configuration, {showHidden: false, depth: 6}))
+          app.debug("config: %o", configuration)
           radius = calc_distance(configuration.position.latitude,
                                  configuration.position.longitude,
                                  position.latitude,
@@ -173,26 +174,34 @@ module.exports = function(app) {
           {
             radius += fudge
           }
-          debug("calc_distance: " + radius)
+          app.debug("calc_distance: " + radius)
         }
 
-        debug("set anchor radius: " + radius)
+        app.debug("set anchor radius: " + radius)
 
         var delta = getAnchorDelta(app, configuration.position, radius,
                                    radius, false, null);
         app.handleMessage(plugin.id, delta)
         
-        var config = readJson(app, plugin.id)
+        var config = app.readPluginOptions()
         configuration = config["configuration"]
 
         configuration["radius"] = radius
         
-        saveJson(app, plugin.id, config, res)
+        app.savePluginOptions(config, err => {
+          if ( err ) {
+            app.error(err.toString())
+            res.status(500)
+            res.send("can't save config")
+          } else {
+            res.send('ok')
+          }
+        })
       }
     })
 
     router.post("/raiseAnchor", (req, res) => {
-      debug("raise anchor")
+      app.debug("raise anchor")
       
       var delta = getAnchorDelta(app, null, null, null, false, null)
       app.handleMessage(plugin.id, delta)
@@ -204,13 +213,21 @@ module.exports = function(app) {
       }
       alarm_sent = false
       
-      var config = readJson(app, plugin.id)
+      var config = app.readPluginOptions()
       configuration = config["configuration"]
       
       delete configuration["position"]
       configuration["on"] = false
         
-      saveJson(app, plugin.id, config, res)
+      app.savePluginOptions(config, err => {
+          if ( err ) {
+            app.error(err.toString())
+            res.status(500)
+            res.send("can't save config")
+          } else {
+            res.send('ok')
+          }
+        })
       if ( unsubscribe )
       {
         unsubscribe()
@@ -221,45 +238,53 @@ module.exports = function(app) {
     router.post("/setAnchorPosition", (req, res) => {
       var position = req.body['position']
 
-      var maxRadius = _.get(app.signalk.self, 'navigation.anchor.maxRadius.value')
+      var maxRadius = app.getSelfPath('navigation.anchor.maxRadius.value')
 
       var delta = getAnchorDelta(app, position, null,
                                  maxRadius, false);
 
-      debug("setAnchorPosition: " + JSON.stringify(delta))
+      app.debug("setAnchorPosition: " + JSON.stringify(delta))
       app.handleMessage(plugin.id, delta)
 
-      var config = readJson(app, plugin.id)
+      var config = app.readPluginOptions()
       configuration = config["configuration"]
       
       configuration["position"] = { "latitude": position.latitude,
                                     "longitude": position.longitude }
       
-      saveJson(app, plugin.id, config, res)
+      app.savePluginOptions(config, err => {
+          if ( err ) {
+            app.error(err.toString())
+            res.status(500)
+            res.send("can't save config")
+          } else {
+            res.send('ok')
+          }
+        })
     });
 
     router.post("/setManualAnchor", (req, res) => {
-      debug("set manual anchor")
+      app.debug("set manual anchor")
 
-      var position = _.get(app.signalk.self, 'navigation.position')
+      var position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       if ( typeof position == 'undefined' )
       {
-        debug("no position available")
+        app.debug("no position available")
         res.status(401)
         res.send("no position available")
         return;
       }
 
-      var heading = _.get(app.signalk.self, 'navigation.headingTrue.value')
+      var heading = app.getSelfPath('navigation.headingTrue.value')
      
       if ( typeof heading == 'undefined' )
       {
-        heading = _.get(app.signalk.self, 'navigation.headingMagnetic.value')
+        heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          debug("no heading available")
+          app.debug("no heading available")
           res.status(401)
           res.send("no heading available")
           return;
@@ -269,14 +294,13 @@ module.exports = function(app) {
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
 
-      debug("anchor rode: " + rode + " depth: " + depth)
+      app.debug("anchor rode: " + rode + " depth: " + depth)
 
       var maxRadius = rode;
 
       if ( depth == 0 )
       {
-        var sd = _.get(app.signalk.self,
-		       'environment.depth.belowSurface.value')
+        var sd = app.getSelfPath('environment.depth.belowSurface.value')
         if ( typeof sd != 'undefined' )
         {
           depth = sd
@@ -296,11 +320,11 @@ module.exports = function(app) {
         maxRadius = Math.sqrt(maxRadius)
       }
 
-      debug("depth: " + depth)      
-      debug("heading: " + heading)
-      debug("maxRadius: " + maxRadius)
+      app.debug("depth: " + depth)      
+      app.debug("heading: " + heading)
+      app.debug("maxRadius: " + maxRadius)
 
-      var gps_dist = _.get(app.signalk.self, "sensors.gps.fromBow.value");
+      var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
       if ( typeof gps_dist != 'undefined' )
       {
         maxRadius += gps_dist
@@ -310,7 +334,7 @@ module.exports = function(app) {
       var fudge = configuration['fudge']
       if ( typeof fudge !== 'undefined' && fudge > 0 )
       {
-        debug("fudge radius by " + fudge)
+        app.debug("fudge radius by " + fudge)
         maxRadius += fudge
       }
 
@@ -320,7 +344,7 @@ module.exports = function(app) {
                                  maxRadius, true, depth);
       app.handleMessage(plugin.id, delta)
       
-      var config = readJson(app, plugin.id)
+      var config = app.readPluginOptions()
       configuration = config["configuration"]
       
       delete configuration["position"]
@@ -332,7 +356,15 @@ module.exports = function(app) {
         configuration.position.altitude = depth * -1
       }
         
-      saveJson(app, plugin.id, config, res)
+      app.savePluginOptions(config, err => {
+          if ( err ) {
+            app.error(err.toString())
+            res.status(500)
+            res.send("can't save config")
+          } else {
+            res.send('ok')
+          }
+        })
       if ( unsubscribe == null )
         startWatchingPosistion()
 
@@ -417,10 +449,9 @@ module.exports = function(app) {
       {
         if ( !depth )
         {
-          depth = _.get(app.signalk.self,
-		        'environment.depth.belowSurface.value')
+          depth = app.getSelfPath('environment.depth.belowSurface.value')
         }
-        debug("depth: " + util.inspect(depth, {showHidden: false, depth: 6}))
+        app.debug("depth: %o", depth)
         if ( typeof depth != 'undefined' )
         {
           position.altitude = -1 * depth
@@ -507,18 +538,18 @@ module.exports = function(app) {
       ]
     }
 
-    //debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
+    //app.debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
     return delta;
   }
 
 
   function checkPosition(app, plugin, radius, possition, anchor_position) {
-    //debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
+    //app.debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
 
     var meters = calc_distance(possition.latitude, possition.longitude,
                                anchor_position.latitude, anchor_position.longitude);
     
-    debug("distance: " + meters + ", radius: " + radius);
+    app.debug("distance: " + meters + ", radius: " + radius);
     
     var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
     app.handleMessage(plugin.id, delta)
@@ -531,7 +562,7 @@ module.exports = function(app) {
 }
 
 function calc_distance(lat1,lon1,lat2,lon2) {
-  //debug("calc_distance: " + lat1 + ", " + lon1 + ", " + lat2 + ", " + lon2)
+  //app.debug("calc_distance: " + lat1 + ", " + lon1 + ", " + lat2 + ", " + lon2)
   var R = 6371000; // Radius of the earth in m
   var dLat = degsToRad(lat2-lat1);  // deg2rad below
   var dLon = degsToRad(lon2-lon1); 
@@ -550,7 +581,7 @@ function calc_position_from(position, heading, distance)
   var dist = (distance / 1000) / 1.852  //m to nm
   dist /= (180*60/Math.PI)  // in radians
 
-  debug("dist: " + dist)
+  app.debug("dist: " + dist)
   
   heading = (Math.PI*2)-heading
   
@@ -595,7 +626,7 @@ function sendAnchorAlarm(sendit, app, plugin, state)
   if ( sendit )
   {
     var delta = getAnchorAlarmDelta(app, state)
-    debug("send alarm: " + util.inspect(delta, {showHidden: false, depth: 6}))
+    app.debug("send alarm: %o", delta)
     app.handleMessage(plugin.id, delta)
   }
 }
@@ -616,45 +647,4 @@ function mpsToKn(mps) {
   return 1.9438444924574 * mps
 }
 
-function pathForPluginId(app, id) {
-    var dir = app.config.configPath || app.config.appPath
-  return path.join(dir, "/plugin-config-data", id + '.json')
-}
 
-function readJson(app, id) {
-  try
-  {
-    const path = pathForPluginId(app, id)
-    debug("path: " + path)
-    const optionsAsString = fs.readFileSync(path, 'utf8');
-    try {
-      return JSON.parse(optionsAsString)
-    } catch (e) {
-      console.error("Could not parse JSON options:" + optionsAsString);
-      return {}
-    }
-  } catch (e) {
-    debug("Could not find options for plugin " + id + ", returning empty options")
-    debug(e.stack)
-    return {}
-  }
-  return JSON.parse()
-}
-
-function saveJson(app, id, json, res)
-{
-  fs.writeFile(pathForPluginId(app, id), JSON.stringify(json, null, 2),
-               function(err) {
-                 if (err) {
-                   debug(err.stack)
-                   console.log(err)
-                   res.status(500)
-                   res.send(err)
-                   return
-                 }
-                 else
-                 {
-                   res.send("Success\n")
-                 }
-               });
-}
