@@ -106,7 +106,7 @@ module.exports = function(app) {
           app.debug("gps_dist: " + gps_dist)
           if ( typeof gps_dist != 'undefined' )
           {
-            position = calc_position_from(position, heading, gps_dist)
+            position = calc_position_from(app, position, heading, gps_dist)
             app.debug("adjusted position by " + gps_dist)
           }
         }
@@ -134,7 +134,7 @@ module.exports = function(app) {
           configuration.position.altitude = depth * -1;
         }
         
-        app.savePluginOptions(config, err => {
+        app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
             res.status(500)
@@ -188,7 +188,7 @@ module.exports = function(app) {
 
         configuration["radius"] = radius
         
-        app.savePluginOptions(config, err => {
+        app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
             res.status(500)
@@ -219,7 +219,7 @@ module.exports = function(app) {
       delete configuration["position"]
       configuration["on"] = false
         
-      app.savePluginOptions(config, err => {
+      app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
             res.status(500)
@@ -252,7 +252,7 @@ module.exports = function(app) {
       configuration["position"] = { "latitude": position.latitude,
                                     "longitude": position.longitude }
       
-      app.savePluginOptions(config, err => {
+      app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
             res.status(500)
@@ -307,7 +307,7 @@ module.exports = function(app) {
         }
       }
 
-      if ( depth != 0 )
+      if ( depth != 0 && rode != 0 )
       {
         var height = configuration.bowHeight;
         var heightFromBow = depth
@@ -316,7 +316,7 @@ module.exports = function(app) {
           heightFromBow += height
         }
         //maxRadius = (depth * depth) + (rode * rode)
-        maxRadius = (rode * rode) - (height *height)
+        maxRadius = (rode * rode) - (heightFromBow *heightFromBow)
         maxRadius = Math.sqrt(maxRadius)
       }
 
@@ -338,7 +338,7 @@ module.exports = function(app) {
         maxRadius += fudge
       }
 
-      var newposition = calc_position_from(position, heading, curRadius)
+      var newposition = calc_position_from(app, position, heading, curRadius)
 
       var delta = getAnchorDelta(app, newposition, curRadius,
                                  maxRadius, true, depth);
@@ -356,7 +356,7 @@ module.exports = function(app) {
         configuration.position.altitude = depth * -1
       }
         
-      app.savePluginOptions(config, err => {
+      app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
             res.status(500)
@@ -576,7 +576,7 @@ function calc_distance(lat1,lon1,lat2,lon2) {
   return d;
 }
 
-function calc_position_from(position, heading, distance)
+function calc_position_from(app, position, heading, distance)
 {
   var dist = (distance / 1000) / 1.852  //m to nm
   dist /= (180*60/Math.PI)  // in radians
