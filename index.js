@@ -38,6 +38,12 @@ module.exports = function(app) {
       {
         startWatchingPosistion()
       }
+
+      if ( app.registerActionHandler ) {
+        app.registerActionHandler('vessels.self',
+                                  `navigation.anchor`,
+                                  putPosition)
+      }
       
     } catch (e) {
       plugin.started = false
@@ -47,6 +53,33 @@ module.exports = function(app) {
     }
   }
 
+  function putPosition(context, path, value, cb) {
+    if ( value == null ) {
+      raiseAnchor()
+    } else {
+      var delta = getAnchorDelta(app, value.position, null, value.radius, true, null);
+      app.handleMessage(plugin.id, delta)
+      
+      var config = app.readPluginOptions()
+      configuration = config["configuration"]
+      
+      configuration["position"] = { "latitude": value.position.latitude,
+                                    "longitude": value.position.longitude }
+      configuration["radius"] = value.radius
+      configuration["on"] = true
+      
+      app.savePluginOptions(configuration, err => {
+        if ( err ) {
+          app.error(err.toString())
+        } 
+      })
+      
+      if ( unsubscribe == null )
+        startWatchingPosistion()
+    }    
+    return { state: 'COMPLETED' }
+  }
+    
   plugin.stop = function() {
     if ( alarm_sent )
     {
@@ -82,6 +115,41 @@ module.exports = function(app) {
       sendAnchorAlarm(sendit,app, plugin, configuration.state)
     })
   }
+
+  function raiseAnchor(cb) {
+    app.debug("raise anchor")
+    
+    var delta = getAnchorDelta(app, null, null, null, false, null)
+    app.handleMessage(plugin.id, delta)
+    
+    if ( alarm_sent )
+    {
+      var delta = getAnchorAlarmDelta(app, "normal")
+      app.handleMessage(plugin.id, delta)
+    }
+    alarm_sent = false
+    
+    var config = app.readPluginOptions()
+    configuration = config["configuration"]
+    
+    delete configuration["position"]
+    configuration["on"] = false
+    
+    app.savePluginOptions(configuration, err => {
+      if ( err ) {
+        app.error(err.toString())
+      }
+      if ( cb ) {
+        cb(err)
+        }
+    })
+    if ( unsubscribe )
+    {
+      unsubscribe()
+      unsubscribe = null
+    }
+  }
+
 
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
@@ -201,38 +269,14 @@ module.exports = function(app) {
     })
 
     router.post("/raiseAnchor", (req, res) => {
-      app.debug("raise anchor")
-      
-      var delta = getAnchorDelta(app, null, null, null, false, null)
-      app.handleMessage(plugin.id, delta)
-
-      if ( alarm_sent )
-      {
-        var delta = getAnchorAlarmDelta(app, "normal")
-        app.handleMessage(plugin.id, delta)
-      }
-      alarm_sent = false
-      
-      var config = app.readPluginOptions()
-      configuration = config["configuration"]
-      
-      delete configuration["position"]
-      configuration["on"] = false
-        
-      app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            res.status(500)
-            res.send("can't save config")
-          } else {
-            res.send('ok')
-          }
-        })
-      if ( unsubscribe )
-      {
-        unsubscribe()
-        unsubscribe = null
-      }
+      raiseAnchor((err) => {
+        if ( err ) {
+          res.status(500)
+          res.send("can't save config")
+        } else {
+          res.send('ok')
+        }
+      })
     })
 
     router.post("/setAnchorPosition", (req, res) => {
@@ -472,10 +516,6 @@ module.exports = function(app) {
         {
           path: "navigation.anchor.position",
           value: position
-        },
-        {
-          path: 'navigation.anchor.currentRadius',
-          value: currentRadius
         }
         /*
           {
@@ -484,6 +524,14 @@ module.exports = function(app) {
           }
         */
       ]
+
+      if ( currentRadius != null ) {
+        values.push(        {
+          path: 'navigation.anchor.currentRadius',
+          value: currentRadius
+        })
+      }
+
       if ( maxRadius != null ) {
         values.push({
           path: 'navigation.anchor.maxRadius',
@@ -526,13 +574,11 @@ module.exports = function(app) {
     }
 
     var delta = {
-      "context": "vessels." + app.selfId,
       "updates": [
         {
           "source": {
             "label": "anchoralarm"
           },
-          "timestamp": (new Date()).toISOString(),
           "values": values
         }
       ]
@@ -598,13 +644,8 @@ function calc_position_from(app, position, heading, distance)
 function getAnchorAlarmDelta(app, state)
 {
   var delta = {
-      "context": "vessels." + app.selfId,
       "updates": [
         {
-          "source": {
-            "label": "anchoralarm"
-          },
-          "timestamp": (new Date()).toISOString(),
           "values": [
             {
               "path": "notifications.anchorAlarm",
@@ -612,7 +653,6 @@ function getAnchorAlarmDelta(app, state)
                 "state": state,
                 "method": [ "visual", "sound" ],
                 "message": "Anchor Alarm - " + state.charAt(0).toUpperCase() + state.slice(1),
-                "timestamp": (new Date()).toISOString()
               }
             }]
         }
@@ -626,7 +666,7 @@ function sendAnchorAlarm(sendit, app, plugin, state)
   if ( sendit )
   {
     var delta = getAnchorAlarmDelta(app, state)
-    app.debug("send alarm: %o", delta)
+    app.debug("send alarm: %j", delta)
     app.handleMessage(plugin.id, delta)
   }
 }
