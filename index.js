@@ -154,7 +154,8 @@ module.exports = function(app) {
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
       var position = app.getSelfPath('navigation.position')
-      if ( position.value )
+      // fix condition to not throw Exception when no position is undefined
+      if ( position && position.value )
         position = position.value
       
       if ( typeof position == 'undefined' )
@@ -209,9 +210,11 @@ module.exports = function(app) {
             res.send("can't save config")
           } else {
             res.send('ok')
+            res.status(200)
           }
         })
         if ( unsubscribe == null )
+app.debug('start watching...')        
           startWatchingPosistion()
       }
     })
@@ -320,7 +323,7 @@ module.exports = function(app) {
         res.send("no position available")
         return;
       }
-
+app.debug('navigation.position -ok');
       var heading = app.getSelfPath('navigation.headingTrue.value')
      
       if ( typeof heading == 'undefined' )
@@ -334,7 +337,7 @@ module.exports = function(app) {
           return;
         }
       }
-      
+ app.debug('heading -ok');     
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
 
@@ -390,7 +393,8 @@ module.exports = function(app) {
       
       var config = app.readPluginOptions()
       configuration = config["configuration"]
-      
+app.debug('configuration loaded'); 	  
+app.debug(configuration);     
       delete configuration["position"]
       configuration["on"] = true
       configuration["radius"] = maxRadius
@@ -399,7 +403,8 @@ module.exports = function(app) {
       if ( depth ) {
         configuration.position.altitude = depth * -1
       }
-        
+app.debug('configuration to save'); 
+app.debug(configuration);       
       app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
@@ -481,14 +486,14 @@ module.exports = function(app) {
                           currentRadius, maxRadius, isSet, depth)
   {
     var values
-
+ 
     if ( position )
     {
       var position = {
         "latitude": position.latitude,
         "longitude": position.longitude
       };
-      
+ 
       if ( isSet )
       {
         if ( !depth )
@@ -503,7 +508,7 @@ module.exports = function(app) {
       }
       else
       {
-        var depth = configuration.position.altitude
+		var depth = position.altitude // configuration.position.altitude
             //_.get(app.signalk.self,
 	//	          'navigation.anchor.position.altitude')
         if ( typeof depth != 'undefined' )
@@ -590,7 +595,7 @@ module.exports = function(app) {
 
 
   function checkPosition(app, plugin, radius, possition, anchor_position) {
-    //app.debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
+    app.debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
 
     var meters = calc_distance(possition.latitude, possition.longitude,
                                anchor_position.latitude, anchor_position.longitude);
