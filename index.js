@@ -154,7 +154,7 @@ module.exports = function(app) {
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
       var position = app.getSelfPath('navigation.position')
-      if ( position.value )
+      if ( position && position.value )
         position = position.value
       
       if ( typeof position == 'undefined' )
