@@ -60,9 +60,6 @@ module.exports = function(app) {
       var delta = getAnchorDelta(app, value.position, null, value.radius, true, null);
       app.handleMessage(plugin.id, delta)
       
-      var config = app.readPluginOptions()
-      configuration = config["configuration"]
-      
       configuration["position"] = { "latitude": value.position.latitude,
                                     "longitude": value.position.longitude }
       configuration["radius"] = value.radius
@@ -110,7 +107,7 @@ module.exports = function(app) {
         var delta = getAnchorAlarmDelta(app, "normal")
         app.handleMessage(plugin.id, delta)
       }
-      return res && !was_sent
+      return res
     }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(sendit => {
       sendAnchorAlarm(sendit,app, plugin, configuration.state)
     })
@@ -128,9 +125,6 @@ module.exports = function(app) {
       app.handleMessage(plugin.id, delta)
     }
     alarm_sent = false
-    
-    var config = app.readPluginOptions()
-    configuration = config["configuration"]
     
     delete configuration["position"]
     configuration["on"] = false
@@ -188,10 +182,6 @@ module.exports = function(app) {
 
         app.debug("anchor delta: " + JSON.stringify(delta))
         
-        var config = app.readPluginOptions()
-        app.debug("config: %o", config)
-        configuration = config["configuration"]
-
         configuration["position"] = { "latitude": position.latitude,
                                       "longitude": position.longitude }
         configuration["radius"] = radius
@@ -251,9 +241,6 @@ module.exports = function(app) {
                                    radius, false, null);
         app.handleMessage(plugin.id, delta)
         
-        var config = app.readPluginOptions()
-        configuration = config["configuration"]
-
         configuration["radius"] = radius
         
         app.savePluginOptions(configuration, err => {
@@ -290,9 +277,6 @@ module.exports = function(app) {
       app.debug("setAnchorPosition: " + JSON.stringify(delta))
       app.handleMessage(plugin.id, delta)
 
-      var config = app.readPluginOptions()
-      configuration = config["configuration"]
-      
       configuration["position"] = { "latitude": position.latitude,
                                     "longitude": position.longitude }
       
@@ -387,9 +371,6 @@ module.exports = function(app) {
       var delta = getAnchorDelta(app, newposition, curRadius,
                                  maxRadius, true, depth);
       app.handleMessage(plugin.id, delta)
-      
-      var config = app.readPluginOptions()
-      configuration = config["configuration"]
       
       delete configuration["position"]
       configuration["on"] = true
