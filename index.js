@@ -503,7 +503,7 @@ module.exports = function(app) {
       }
       else
       {
-        var depth = configuration.position.altitude
+        var depth = position.altitude
             //_.get(app.signalk.self,
 	//	          'navigation.anchor.position.altitude')
         if ( typeof depth != 'undefined' )
