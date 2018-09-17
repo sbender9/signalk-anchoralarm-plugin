@@ -41,8 +41,16 @@ module.exports = function(app) {
 
       if ( app.registerActionHandler ) {
         app.registerActionHandler('vessels.self',
-                                  `navigation.anchor`,
+                                  `navigation.anchor.position`,
                                   putPosition)
+
+        app.registerActionHandler('vessels.self',
+                                  `navigation.anchor.maxRadius`,
+                                  putRadius)
+
+        app.registerActionHandler('vessels.self',
+                                  `navigation.anchor.rodeLength`,
+                                  putRodeLength)
       }
       
     } catch (e) {
@@ -53,28 +61,98 @@ module.exports = function(app) {
     }
   }
 
+  function putRadius(context, path, value, cb) {
+    app.handleMessage(plugin.id, {
+      updates: [
+        {
+          values: [
+            {
+              path: "navigation.anchor.maxRadius",
+              value: value
+            }
+          ]
+        }
+      ]
+    })
+
+    configuration["radius"] = value
+    if ( configuration["position"] ) {
+      configuration["on"] = true
+      if ( unsubscribe == null )
+        startWatchingPosistion()
+    }
+    
+    app.savePluginOptions(configuration, err => {
+      if ( err ) {
+        app.error(err.toString())
+        cb({state: 'FAILURE', message: err.toString()})
+      } else {
+        cb({state: 'SUCCESS'})
+      }
+    })
+    
+    return { state: 'PENDING' }
+  }
+
+  function putRodeLength(context, path, value, cb) {
+    app.handleMessage(plugin.id, {
+      updates: [
+        {
+          values: [
+            {
+              path: "navigation.anchor.rodeLength",
+              value: value
+            }
+          ]
+        }
+      ]
+    })
+
+    setManualAnchor(null, value, (status, message) => {
+      if ( status != 200 ) {
+        cb({state: 'FAILURE', message})
+      } else {
+        app.savePluginOptions(configuration, err => {
+          if ( err ) {
+            app.error(err.toString())
+            cb({state: 'FAILURE', message:err.toString()})
+          } else {
+            cb({state: 'SUCCESS'})
+          }
+        })
+      }
+    })
+    
+    return { state: 'PENDING' }
+  }
+
   function putPosition(context, path, value, cb) {
     if ( value == null ) {
       raiseAnchor()
     } else {
-      var delta = getAnchorDelta(app, value.position, null, value.radius, true, null);
+      var delta = getAnchorDelta(app, value, null, configuration["radius"], true, null);
       app.handleMessage(plugin.id, delta)
       
-      configuration["position"] = { "latitude": value.position.latitude,
-                                    "longitude": value.position.longitude }
-      configuration["radius"] = value.radius
-      configuration["on"] = true
+      configuration["position"] = { "latitude": value.latitude,
+                                    "longitude": value.longitude }
+      //configuration["radius"] = value.radius
+      if ( configuration["radius"] ) {
+        configuration["on"] = true
+        if ( unsubscribe == null )
+          startWatchingPosistion()
+      }
       
       app.savePluginOptions(configuration, err => {
         if ( err ) {
           app.error(err.toString())
-        } 
+          cb({state: 'FAILURE', message:err.toString()})
+        } else {
+          cb({state: 'SUCCESS'})
+        }
       })
-      
-      if ( unsubscribe == null )
-        startWatchingPosistion()
+     
     }    
-    return { state: 'COMPLETED' }
+    return { state: 'PENDING' }
   }
     
   plugin.stop = function() {
@@ -127,6 +205,7 @@ module.exports = function(app) {
     alarm_sent = false
     
     delete configuration["position"]
+    delete configuration["radius"]
     configuration["on"] = false
     
     app.savePluginOptions(configuration, err => {
@@ -293,16 +372,26 @@ module.exports = function(app) {
 
     router.post("/setManualAnchor", (req, res) => {
       app.debug("set manual anchor")
+      var depth = req.body['anchorDepth']
+      var rode = req.body['rodeLength']
+      var result = setManualAnchor(depth, rode, (status, message) => {
+        res.status(status)
+        res.send(message)
+      })
+    })
 
+    
+  }
+
+  function setManualAnchor(depth, rode, cb) {
       var position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
-        res.send("no position available")
-        return;
+        cb(401, "no position available")
+        return
       }
 
       var heading = app.getSelfPath('navigation.headingTrue.value')
@@ -312,16 +401,10 @@ module.exports = function(app) {
         heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          app.debug("no heading available")
-          res.status(401)
-          res.send("no heading available")
-          return;
+          cb(401, "no heading available")
         }
       }
       
-      var depth = req.body['anchorDepth']
-      var rode = req.body['rodeLength']
-
       app.debug("anchor rode: " + rode + " depth: " + depth)
 
       var maxRadius = rode;
@@ -376,6 +459,10 @@ module.exports = function(app) {
       configuration["on"] = true
       configuration["radius"] = maxRadius
       configuration["position"] = newposition
+      configuration["rodeLength"] = newposition
+      if ( rode ) {
+        configuration["rodeLength"] = rode
+      }
 
       if ( depth ) {
         configuration.position.altitude = depth * -1
@@ -384,17 +471,15 @@ module.exports = function(app) {
       app.savePluginOptions(configuration, err => {
           if ( err ) {
             app.error(err.toString())
-            res.status(500)
-            res.send("can't save config")
+            cb(500, "can't save config")
           } else {
-            res.send('ok')
+            cb(200, "ok")
           }
-        })
+      })
+      
       if ( unsubscribe == null )
         startWatchingPosistion()
-
-    })
-  }
+    }
     
   plugin.id = "anchoralarm"
   plugin.name = "Anchor Alarm"
@@ -535,7 +620,7 @@ module.exports = function(app) {
       values = [
         {
           path: 'navigation.anchor.position',
-          value: { latitude: null, longitude: null, altitude: null }
+          value: null //{ latitude: null, longitude: null, altitude: null }
         },
         {
           path: 'navigation.anchor.currentRadius',
