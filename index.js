@@ -714,7 +714,7 @@ function getAnchorAlarmDelta(app, state)
         {
           "values": [
             {
-              "path": "notifications.anchorAlarm",
+              "path": "notifications.navigation.anchor",
               "value": {
                 "state": state,
                 "method": [ "visual", "sound" ],
