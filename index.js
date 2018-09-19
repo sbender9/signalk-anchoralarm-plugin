@@ -24,6 +24,7 @@ module.exports = function(app) {
   var unsubscribe = undefined
   var state
   var configuration
+  var delayStartTime 
 
   plugin.start = function(props) {
     configuration = props
@@ -173,21 +174,22 @@ module.exports = function(app) {
   function startWatchingPosistion()
   {
     unsubscribe = Bacon.combineWith(function(position) {
-      var res = false
-      res = checkPosition(app, plugin, configuration.radius,
-                          position, configuration.position)
+      var state
+      state = checkPosition(app, plugin, configuration.radius,
+                            position, configuration.position)
       var was_sent = alarm_sent
-      alarm_sent = res
-      if ( was_sent && !res )
+      alarm_sent = state
+      if ( was_sent && !state )
       {
         //clear it
         app.debug("clear_it")
         var delta = getAnchorAlarmDelta(app, "normal")
         app.handleMessage(plugin.id, delta)
+        delayStartTime = undefined
       }
-      return res
-    }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(sendit => {
-      sendAnchorAlarm(sendit,app, plugin, configuration.state)
+      return state
+    }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(state => {
+      sendAnchorAlarm(state, app, plugin)
     })
   }
 
@@ -203,6 +205,7 @@ module.exports = function(app) {
       app.handleMessage(plugin.id, delta)
     }
     alarm_sent = false
+    delayStartTime = undefined
     
     delete configuration["position"]
     delete configuration["radius"]
@@ -503,6 +506,21 @@ module.exports = function(app) {
         title: "Alarm Radius (m)",
         default: 60
       },
+      delay: {
+        type: "number",
+        title: "Send an alarm after the bout has been outside of the alarms radius for the given time. (seconds, 0 for none)",
+        default: 0
+      },
+      warningPercentage: {
+        type: "number",
+        title: "Percentage of alarm radius to set a warning (0 for none)",
+        default: 0
+      },
+      warningNotification: {
+        type: "boolean",
+        title: "Send a notification when past the warning percentage",
+        default: false
+      },
       position: {
         type: "object",
         title: "Anchor Position",
@@ -603,6 +621,44 @@ module.exports = function(app) {
           path: 'navigation.anchor.maxRadius',
           value: maxRadius
         })
+        var zones
+        if ( configuration.warningPercentage ) {
+          let warning = maxRadius * (configuration.warningPercentage/100)
+          zones = [
+            {
+              state: "normal",
+              lower: 0,
+              upper: warning
+            },
+            {
+              state: "warn",
+              lower: warning,
+              upper: maxRadius
+            },
+            {
+              state: configuration.state,
+              lower: maxRadius
+            }
+          ]
+        } else {
+          zones = [
+            {
+              state: "normal",
+              lower: 0,
+              upper: maxRadius
+            },
+            {
+              state: configuration.state,
+              lower: maxRadius
+            }
+          ]
+        }
+        values.push({
+          path: 'navigation.anchor.meta',
+          value: {
+            zones: zones
+          }
+        })
       }
       if ( typeof configuration.bowHeight !== 'undefined' ) {
         values.push({
@@ -665,9 +721,48 @@ module.exports = function(app) {
     
     var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
     app.handleMessage(plugin.id, delta)
+
+    if ( radius != null ) {
+      var state
+      var warning = configuration.warningPercentage ? (configuration.warningPercentage/100) * radius : 0
+      if ( meters > radius ) {
+        state = configuration.state
+      } else if ( warning > 0 && configuration.warningNotification && meters > warning ) {
+        state = 'warn'
+      }
+
+      if ( state ) {
+        if ( !configuration.delay ) {
+          return state
+        } else {
+          if ( delayStartTime ) {
+            if ( (Date.now() - delayStartTime)/1000 > configuration.delay ) {
+              app.debug('alarm delay reached')
+              return state
+            }
+          } else {
+            delayStartTime = Date.now()
+            app.debug('delaying alarm for %d seconds', configuration.delay)
+          }
+        }
+      } else if ( delayStartTime ) {
+        delayStartTime = undefined
+      }
+    }
   
-    return radius != null &&  meters > radius;
+    return null
   }
+
+  function sendAnchorAlarm(state, app, plugin)
+  {
+    if ( state )
+    {
+      var delta = getAnchorAlarmDelta(app, state)
+      app.debug("send alarm: %j", delta)
+      app.handleMessage(plugin.id, delta)
+    }
+  }
+
 
    
   return plugin;
@@ -725,16 +820,6 @@ function getAnchorAlarmDelta(app, state)
       ]
   }
   return delta;
-}
-
-function sendAnchorAlarm(sendit, app, plugin, state)
-{
-  if ( sendit )
-  {
-    var delta = getAnchorAlarmDelta(app, state)
-    app.debug("send alarm: %j", delta)
-    app.handleMessage(plugin.id, delta)
-  }
 }
 
 function radsToDeg(radians) {
