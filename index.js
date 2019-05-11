@@ -22,9 +22,12 @@ module.exports = function(app) {
   var plugin = {};
   var alarm_sent = false
   var unsubscribe = undefined
+  var positionInterval
   var state
   var configuration
   var delayStartTime
+  var lastPositionTime
+  var positionAlarmSent
 
   plugin.start = function(props) {
     configuration = props
@@ -169,6 +172,10 @@ module.exports = function(app) {
       unsubscribe()
       unsubscribe = null
     }
+    if ( positionInterval ) {
+      clearInterval(positionInterval)
+      positionInterval = null
+    }
   }
 
   function startWatchingPosistion()
@@ -192,6 +199,18 @@ module.exports = function(app) {
     }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(state => {
       sendAnchorAlarm(state, app, plugin)
     })
+
+    positionInterval = setInterval(() => {
+      app.debug('checking last position...')
+      if ( !lastPositionTime || Date.now() - lastPositionTime > configuration.noPositionAlarmTime * 1000 ) {
+        positionAlarmSent = true
+        sendAnchorAlarm(configuration.state, app, plugin, 'No position received')
+      } else if ( alarm_sent == false && positionAlarmSent ) {
+        var delta = getAnchorAlarmDelta(app, "normal")
+        app.handleMessage(plugin.id, delta)
+        positionAlarmSent = false
+      }
+    }, 10000)
   }
 
   function raiseAnchor(cb) {
@@ -224,6 +243,10 @@ module.exports = function(app) {
     {
       unsubscribe()
       unsubscribe = null
+    }
+    if ( positionInterval ) {
+      clearInterval(positionInterval)
+      positionInterval = null
     }
   }
 
@@ -521,6 +544,11 @@ module.exports = function(app) {
         type: "boolean",
         title: "Send a notification when past the warning percentage",
         default: false
+      },
+      noPositionAlarmTime: {
+        type: "number",
+        title: "Send a notification if no position is received for the given number of seconds",
+        default: 10
       },
       position: {
         type: "object",
