@@ -24,7 +24,7 @@ module.exports = function(app) {
   var unsubscribe = undefined
   var state
   var configuration
-  var delayStartTime 
+  var delayStartTime
 
   plugin.start = function(props) {
     configuration = props
@@ -175,6 +175,7 @@ module.exports = function(app) {
   {
     unsubscribe = Bacon.combineWith(function(position) {
       var state
+      lastPositionTime = Date.now()
       state = checkPosition(app, plugin, configuration.radius,
                             position, configuration.position)
       var was_sent = alarm_sent
@@ -508,7 +509,7 @@ module.exports = function(app) {
       },
       delay: {
         type: "number",
-        title: "Send an alarm after the bout has been outside of the alarms radius for the given time. (seconds, 0 for none)",
+        title: "Send a notification after the boat has been outside of the alarms radius for the given number of seconds (0 for imediate)",
         default: 0
       },
       warningPercentage: {
@@ -753,11 +754,11 @@ module.exports = function(app) {
     return null
   }
 
-  function sendAnchorAlarm(state, app, plugin)
+  function sendAnchorAlarm(state, app, plugin, msg)
   {
     if ( state )
     {
-      var delta = getAnchorAlarmDelta(app, state)
+      var delta = getAnchorAlarmDelta(app, state, msg)
       app.debug("send alarm: %j", delta)
       app.handleMessage(plugin.id, delta)
     }
@@ -802,8 +803,11 @@ function calc_position_from(app, position, heading, distance)
            "longitude": radsToDeg(lon) }
 }
   
-function getAnchorAlarmDelta(app, state)
+function getAnchorAlarmDelta(app, state, msg)
 {
+  if ( ! msg ) {
+    msg = "Anchor Alarm - " + state.charAt(0).toUpperCase() + state.slice(1)
+  }
   var delta = {
       "updates": [
         {
@@ -813,7 +817,7 @@ function getAnchorAlarmDelta(app, state)
               "value": {
                 "state": state,
                 "method": [ "visual", "sound" ],
-                "message": "Anchor Alarm - " + state.charAt(0).toUpperCase() + state.slice(1),
+                "message": msg,
               }
             }]
         }
