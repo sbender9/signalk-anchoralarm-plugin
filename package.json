@@ -16,7 +16,7 @@
   "license": "ISC",
   "dependencies": {
     "baconjs": "^0.7.88",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.13"
   },
   "repository": {
     "type": "git",
