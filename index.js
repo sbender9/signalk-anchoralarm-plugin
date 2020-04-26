@@ -205,7 +205,7 @@ module.exports = function(app) {
       if ( !lastPositionTime || Date.now() - lastPositionTime > configuration.noPositionAlarmTime * 1000 ) {
         positionAlarmSent = true
         sendAnchorAlarm(configuration.state, app, plugin, 'No position received')
-      } else if ( alarm_sent == false && positionAlarmSent ) {
+      } else if ( !alarm_sent && positionAlarmSent ) {
         var delta = getAnchorAlarmDelta(app, "normal")
         app.handleMessage(plugin.id, delta)
         positionAlarmSent = false
