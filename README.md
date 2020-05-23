@@ -4,9 +4,6 @@
 
 SignalK Node Server Anchor Alarm Plugin
 
-
-Then go to http://localhost:3000/plugins and enable the anchor alarm plugin.
-
 Then use WilhelmSK to set the alarm (https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8)
 
 If not using WilhelmSK, you can setup the alarm using the REST API.
