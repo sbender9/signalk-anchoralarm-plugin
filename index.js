@@ -28,6 +28,7 @@ module.exports = function(app) {
   var delayStartTime
   var lastPositionTime
   var positionAlarmSent
+  var saveOptionsTimer
 
   plugin.start = function(props) {
     configuration = props
@@ -65,6 +66,22 @@ module.exports = function(app) {
     }
   }
 
+  function savePluginOptions() {
+    if ( app.savePluginOptionsSync ) {
+      app.savePluginOptionsSync(configuration)
+    } else if ( !saveOptionsTimer ) {
+      saveOptionsTimer = setTimeout(() => {
+        app.debug('saving options..')
+        saveOptionsTimer = undefined
+        app.savePluginOptions(configuration, err => {
+          if ( err ) {
+            app.error(err)
+          }
+        })
+      }, 1000)
+    }
+  }
+  
   function putRadius(context, path, value, cb) {
     app.handleMessage(plugin.id, {
       updates: [
@@ -85,17 +102,14 @@ module.exports = function(app) {
       if ( unsubscribe == null )
         startWatchingPosistion()
     }
-    
-    app.savePluginOptions(configuration, err => {
-      if ( err ) {
-        app.error(err.toString())
-        cb({state: 'FAILURE', message: err.toString()})
-      } else {
-        cb({state: 'SUCCESS'})
-      }
-    })
-    
-    return { state: 'PENDING' }
+
+    try {
+      savePluginOptions()
+      return {state: 'SUCCESS'}
+    } catch { err } {
+      app.error(err)
+      return {state: 'FAILURE', message: err.message}
+    }
   }
 
   function putRodeLength(context, path, value, cb) {
@@ -112,51 +126,39 @@ module.exports = function(app) {
       ]
     })
 
-    setManualAnchor(null, value, (status, message) => {
-      if ( status != 200 ) {
-        cb({state: 'FAILURE', message})
-      } else {
-        app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            cb({state: 'FAILURE', message:err.toString()})
-          } else {
-            cb({state: 'SUCCESS'})
-          }
-        })
-      }
-    })
+    let res = setManualAnchor(null, value)
     
-    return { state: 'PENDING' }
+    if ( res.code != 200 ) {
+      return {state: 'FAILURE', message: res.message}
+    } else {
+      return {state: 'SUCCESS'}
+    }
   }
 
   function putPosition(context, path, value, cb) {
-    if ( value == null ) {
-      raiseAnchor()
-    } else {
-      var delta = getAnchorDelta(app, value, null, configuration["radius"], true, null);
-      app.handleMessage(plugin.id, delta)
-      
-      configuration["position"] = { "latitude": value.latitude,
-                                    "longitude": value.longitude }
-      //configuration["radius"] = value.radius
-      if ( configuration["radius"] ) {
-        configuration["on"] = true
-        if ( unsubscribe == null )
-          startWatchingPosistion()
-      }
-      
-      app.savePluginOptions(configuration, err => {
-        if ( err ) {
-          app.error(err.toString())
-          cb({state: 'FAILURE', message:err.toString()})
-        } else {
-          cb({state: 'SUCCESS'})
+    try {
+      if ( value == null ) {
+        raiseAnchor()
+      } else {
+        var delta = getAnchorDelta(app, value, null, configuration["radius"], true, null);
+        app.handleMessage(plugin.id, delta)
+        
+        configuration["position"] = { "latitude": value.latitude,
+                                      "longitude": value.longitude }
+        //configuration["radius"] = value.radius
+        if ( configuration["radius"] ) {
+          configuration["on"] = true
+          if ( unsubscribe == null )
+            startWatchingPosistion()
         }
-      })
-     
-    }    
-    return { state: 'PENDING' }
+
+        savePluginOptions()
+      }
+      return {state: 'SUCCESS'}
+    } catch { err } {
+      app.error(err)
+      return {state: 'FAILURE', message: err.message}
+    }
   }
     
   plugin.stop = function() {
@@ -213,7 +215,7 @@ module.exports = function(app) {
     }, 10000)
   }
 
-  function raiseAnchor(cb) {
+  function raiseAnchor() {
     app.debug("raise anchor")
     
     var delta = getAnchorDelta(app, null, null, null, false, null)
@@ -230,15 +232,7 @@ module.exports = function(app) {
     delete configuration["position"]
     delete configuration["radius"]
     configuration["on"] = false
-    
-    app.savePluginOptions(configuration, err => {
-      if ( err ) {
-        app.error(err.toString())
-      }
-      if ( cb ) {
-        cb(err)
-        }
-    })
+
     if ( unsubscribe )
     {
       unsubscribe()
@@ -248,6 +242,8 @@ module.exports = function(app) {
       clearInterval(positionInterval)
       positionInterval = null
     }
+
+    savePluginOptions()
   }
 
 
@@ -297,18 +293,18 @@ module.exports = function(app) {
         if ( depth ) {
           configuration.position.altitude = depth * -1;
         }
-        
-        app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            res.status(500)
-            res.send("can't save config")
-          } else {
-            res.send('ok')
-          }
-        })
+
         if ( unsubscribe == null )
           startWatchingPosistion()
+
+        try {
+          savePluginOptions()
+          res.send('ok')
+        } catch ( err ) {
+          app.error(err)
+          res.status(500)
+          res.send("can't save config")
+        }
       }
     })
     
@@ -348,28 +344,27 @@ module.exports = function(app) {
         app.handleMessage(plugin.id, delta)
         
         configuration["radius"] = radius
-        
-        app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            res.status(500)
-            res.send("can't save config")
-          } else {
-            res.send('ok')
-          }
-        })
+
+        try {
+          savePluginOptions()
+          res.send('ok')
+        } catch ( err ) {
+          app.error(err)
+          res.status(500)
+          res.send("can't save config")
+        }
       }
     })
 
     router.post("/raiseAnchor", (req, res) => {
-      raiseAnchor((err) => {
-        if ( err ) {
-          res.status(500)
-          res.send("can't save config")
-        } else {
-          res.send('ok')
-        }
-      })
+      try {
+        raiseAnchor()
+        res.send('ok')
+      } catch ( err ) {
+        app.error(err)
+        res.status(500)
+        res.send("can't save config")
+      }
     })
 
     router.post("/setAnchorPosition", (req, res) => {
@@ -385,40 +380,37 @@ module.exports = function(app) {
 
       configuration["position"] = { "latitude": position.latitude,
                                     "longitude": position.longitude }
-      
-      app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            res.status(500)
-            res.send("can't save config")
-          } else {
-            res.send('ok')
-          }
-        })
+
+      try {
+        savePluginOptions()
+        res.send('ok')
+      } catch ( err ) {
+        app.error(err)
+        res.status(500)
+        res.send("can't save config")
+      }
     });
 
     router.post("/setManualAnchor", (req, res) => {
       app.debug("set manual anchor")
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
-      var result = setManualAnchor(depth, rode, (status, message) => {
-        res.status(status)
-        res.send(message)
-      })
+      var result = setManualAnchor(depth, rode)
+      res.status(result.code)
+      res.send(result.message)
     })
 
     
   }
 
-  function setManualAnchor(depth, rode, cb) {
+  function setManualAnchor(depth, rode) {
       var position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        cb(401, "no position available")
-        return
+        return {code: 401, message: "no position available"}
       }
 
       var heading = app.getSelfPath('navigation.headingTrue.value')
@@ -428,7 +420,7 @@ module.exports = function(app) {
         heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          cb(401, "no heading available")
+          return {code: 401, message: "no heading available"}
         }
       }
       
@@ -494,18 +486,17 @@ module.exports = function(app) {
       if ( depth ) {
         configuration.position.altitude = depth * -1
       }
-        
-      app.savePluginOptions(configuration, err => {
-          if ( err ) {
-            app.error(err.toString())
-            cb(500, "can't save config")
-          } else {
-            cb(200, "ok")
-          }
-      })
-      
+
       if ( unsubscribe == null )
         startWatchingPosistion()
+    
+      try {
+        savePluginOptions()
+        return {code: 200, message: "ok"}
+      } catch ( err ) {
+        app.error(err)
+        return {code: 501, message: err.message}
+      }
     }
     
   plugin.id = "anchoralarm"
