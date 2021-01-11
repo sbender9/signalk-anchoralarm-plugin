@@ -339,7 +339,7 @@ module.exports = function(app) {
 
         app.debug("set anchor radius: " + radius)
 
-        var delta = getAnchorDelta(app, configuration.position, radius,
+        var delta = getAnchorDelta(app, configuration.position, null,
                                    radius, false, null);
         app.handleMessage(plugin.id, delta)
         
