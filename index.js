@@ -827,6 +827,12 @@ function getAnchorAlarmDelta(app, state, msg)
   if ( ! msg ) {
     msg = "Anchor Alarm - " + state.charAt(0).toUpperCase() + state.slice(1)
   }
+  let method = [ "visual", "sound" ]
+  const existing = app.getSelfPath('notifications.navigation.anchor.value')
+  app.debug('existing %j', existing)
+  if ( existing && existing.state !== 'normal' ) {
+    method = existing.method
+  }
   var delta = {
       "updates": [
         {
@@ -835,7 +841,7 @@ function getAnchorAlarmDelta(app, state, msg)
               "path": "notifications.navigation.anchor",
               "value": {
                 "state": state,
-                "method": [ "visual", "sound" ],
+                method,
                 "message": msg,
               }
             }]
