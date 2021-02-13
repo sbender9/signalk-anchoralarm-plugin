@@ -266,15 +266,33 @@ module.exports = function(app) {
         app.debug("heading: " + heading)
         if ( typeof heading != 'undefined' )
         {
-          var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
-          app.debug("gps_dist: " + gps_dist)
-          if ( typeof gps_dist != 'undefined' )
+          // Calculate anchor dropping position from location of gps and anchor dropping point relative to bow/centerline
+          // Correct for longitudinal offset of anchor drop point 
+          var distLong_bow2gps = app.getSelfPath("sensors.gps.fromBow.value");
+          app.debug("distLong_bow2gps: " + distLong_bow2gps)
+          if ( typeof distLong_bow2gps != 'undefined' )
           {
-            position = calc_position_from(app, position, heading, gps_dist)
-            app.debug("adjusted position by " + gps_dist)
+            var distLong_anchor2gps = distLong_bow2gps - configuration.distLong_bow2anchor
+            position = calc_position_from(app, position, heading, distLong_anchor2gps)
+            app.debug("adjusted in longitudinal direction by " + distLong_anchor2gps)
+          }
+
+          // Correct for transversal offset of anchor drop point
+          var distTransv_center2gps = app.getSelfPath("sensors.gps.fromCenter.value");
+          app.debug("distTransv_center2gps: " + distTransv_center2gps)
+          if ( typeof distTransv_center2gps != 'undefined' )
+          {
+            headingOrthogonal = heading - 0.5*3.14159  // get transversal direction
+            if(headingOrthogonal < 0.0)
+            {
+              headingOrthogonal += 2*3.14159 
+            }
+            var distTransv_anchor2gps = configuration.distTransv_center2anchor - distTransv_center2gps
+            position = calc_position_from(app, position, headingOrthogonal, distTransv_anchor2gps)
+            app.debug("adjusted in transversal direction by " + distTransv_anchor2gps)
           }
         }
-  
+
         app.debug("set anchor position to: " + position.latitude + " " + position.longitude)
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
@@ -569,6 +587,18 @@ module.exports = function(app) {
         type: "number",
         title: "The height of the bow from the water (m)",
         description: "This is used to calculate rode length",
+        default: 0
+      },
+      distLong_bow2anchor: {
+        type: "number",
+        title: "Longitudinal distance from bow to anchor drop point (m)",
+        description: "In case the anchor is dropped from somewhere else than the bow, this allows to set the anchor position accordingly",
+        default: 0
+      },
+      distTransv_center2anchor: {
+        type: "number",
+        title: "Transversal distance between centerline and anchor drop point (m, + to port)",
+        description: "In case the anchor is dropped from somewhere else than the bow, this allows to set the anchor position accordingly",
         default: 0
       },
       state: {
