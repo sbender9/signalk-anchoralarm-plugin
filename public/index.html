@@ -124,9 +124,12 @@
   satelliteLayer.addTo(map);
 
   $('#raiseAnchor').click( () => {
-    $.post('/plugins/anchoralarm/raiseAnchor', () => {
-      location.reload();
-    });
+    let agree=confirm('Do you really want to disable your anchor alarm?');
+    if (agree) {
+      $.post('/plugins/anchoralarm/raiseAnchor', () => {
+        location.reload();
+      });
+    }
   });
 
   $('#dropAnchor').click( () => {
@@ -143,10 +146,12 @@
   $('#setRadius').click( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
       let newRadius = prompt('Enter Radius (m)', radius)
-      $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-        anchorRadius.setRadius(newRadius);
-        $('#radius').html(newRadius);
-      });
+      if (newRadius) {
+        $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
+          anchorRadius.setRadius(newRadius);
+          $('#radius').html(newRadius);
+        });
+      }
     });
   });
 
