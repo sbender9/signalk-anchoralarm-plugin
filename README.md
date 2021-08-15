@@ -6,7 +6,13 @@ SignalK Node Server Anchor Alarm Plugin
 
 Then use WilhelmSK to set the alarm (https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8)
 
-If not using WilhelmSK, you can setup the alarm using the REST API.
+If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API.
+
+## Web App
+
+Point your Web Browser to http://<signalk-server-ip-address>:<port-number>/signalk-anchoralarm-plugin/
+
+## REST API
 
 ### When you drop the anchor in the water, Call dropAnchor:
 
