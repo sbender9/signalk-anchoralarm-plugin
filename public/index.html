@@ -95,9 +95,9 @@
           icon: boatIcon
       }).addTo(map)
 
-      let anchorPosition = data.anchor.position.value;
-      if (anchorPosition) {
+      if ((data.anchor) && (data.anchor.position) && (data.anchor.position.value)) {
 	$('#anchorDown').show();
+        let anchorPosition = data.anchor.position.value;	
         let anchorLatitude = anchorPosition.latitude;
         let anchorLongitude = anchorPosition.longitude;
         let currentRadius = data.anchor.currentRadius.value;
