@@ -44,6 +44,9 @@
        button {
 	  font-size: 24px;
        }
+       #anchorDown, #anchorUp {
+	  display: none;
+       }
     </style>
 </head>
 <body>
@@ -95,7 +98,6 @@
       let anchorPosition = data.anchor.position.value;
       if (anchorPosition) {
 	$('#anchorDown').show();
-	$('#anchorUp').hide();
         let anchorLatitude = anchorPosition.latitude;
         let anchorLongitude = anchorPosition.longitude;
         let currentRadius = data.anchor.currentRadius.value;
@@ -107,7 +109,6 @@
             icon: anchorIcon
         }).addTo(map);
       } else {
-	$('#anchorDown').hide();
 	$('#anchorUp').show();
       }
   });
