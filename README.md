@@ -10,7 +10,9 @@ If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API
 
 ## Web App
 
-Point your Web Browser to http://<signalk-server-ip-address>:<port-number>/signalk-anchoralarm-plugin/
+Point your Web Browser to http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/
+
+Note that you must be logged in to SignalK UIfor this to work.
 
 ## REST API
 
