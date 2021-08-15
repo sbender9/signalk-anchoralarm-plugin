@@ -108,6 +108,21 @@
         anchor = L.marker(anchorLatLng, {
             icon: anchorIcon
         }).addTo(map);
+	setInterval( () => {
+  	  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+            let latitude = data.position.value.latitude;
+      	    let longitude = data.position.value.longitude;
+      	    let heading = data.headingTrue.value;
+      	    if (heading) {
+              heading = heading *  57.295779513; // Convert to degrees
+      	    } else {
+              heading = 0;
+      	    }
+      	    let latlng = L.latLng(latitude, longitude);
+	    boat.setLatLng(latlng); 
+	    boat.setRotationAngle(heading);
+	  });
+ 	}, 1000*5);
       } else {
 	$('#anchorUp').show();
       }
