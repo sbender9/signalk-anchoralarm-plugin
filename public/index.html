@@ -41,7 +41,22 @@
 	  text-align: center;
 	  line-height: 40px;
        }
-       button {
+       #depth {
+          position: absolute;
+          bottom: 120px;
+          left: 50%;
+	  width: 200px;
+	  height: 50px;
+	  margin-left: -100px;
+          z-index: 99;
+	  padding-top: 10px;
+	  opacity: 1;
+	  border-radius: 5px;
+	  text-align: center;
+	  font-size: 26pt;
+	  color: white;
+       }
+        button {
 	  font-size: 24px;
        }
        #anchorDown, #anchorUp {
@@ -63,7 +78,9 @@
       <button id='dropAnchor'>Drop Anchor</button><br/>
     </div>
   </div>
-</div>
+  <div id="depth">
+    <button id='setRadius'><span id='depthValue'>0</span>m</button>&nbsp;&nbsp;
+ </div>
 <script>
   var boat;
   var anchor;
@@ -79,6 +96,11 @@
     iconSize:     [24, 24], // size of the icon
     iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
   });
+  setInterval( () => {
+    $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+      $('#depthValue').html(depth);
+    });
+  }, 1000);
   $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
       let latitude = data.position.value.latitude;
       let longitude = data.position.value.longitude;
