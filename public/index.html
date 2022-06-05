@@ -138,9 +138,17 @@
 	  } else {
             target[vessel.mmsi] = L.marker([position.latitude, position.longitude], {
               icon: targetIcon
-	    }).addTo(map).bindPopup(`${name} at ${distance} meters`);
+	    });
+	    target[vessel.mmsi].addTo(map).bindPopup(`${name} at ${distance} meters`);
 	  }
 	}
+      }
+      for (let mmsi in target) {
+ 	if (!detectedTargets.includes(mmsi)) {
+	  console.log(`${mmsi} moved out of range`);
+	  map.removeLayer(target[mmsi]);
+	  delete target[mmsi];
+        }
       }
     });
   }, 1500);
