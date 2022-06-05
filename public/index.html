@@ -41,7 +41,7 @@
 	  text-align: center;
 	  line-height: 40px;
        }
-       #depth {
+       #info {
           position: absolute;
           bottom: 120px;
           left: 50%;
@@ -57,7 +57,7 @@
 	  color: white;
        }
         button {
-	  font-size: 24px;
+	  font-size: 23px;
        }
        #anchorDown, #anchorUp {
 	  display: none;
@@ -70,21 +70,26 @@
   <div id="map_toggle">
     <div id='anchorDown'>
       <button id='raiseAnchor'>Raise Anchor</button><br/>
-      <button id='decreaseRadius'> - </button>&nbsp;&nbsp;
-      <button id='setRadius'><span id='radius'>0</span>m</button>&nbsp;&nbsp;
+      <button id='decreaseRadius'> - </button>&nbsp;
+      <button id='setRadius'><span id='radiusValue'>0</span>/<span id='radius'>0</span>m</button>&nbsp;
       <button id='increaseRadius'> + </button>
     </div>
     <div id='anchorUp'>
       <button id='dropAnchor'>Drop Anchor</button><br/>
     </div>
   </div>
-  <div id="depth">
-    <button id='setRadius'><span id='depthValue'>0</span>m</button>&nbsp;&nbsp;
+  <div id="info">
+    <button id='setRadius'><span id='depthValue'>0</span>m</button>
  </div>
 <script>
   var boat;
   var anchor;
   var anchorRadius;
+  var mmsi;
+  var maxRadius;
+  var latitude;
+  var longitude;
+  var target = {};
   var map = L.map('map').setView([39.8283, -98.5795], 5);
   var boatIcon = L.icon({
     iconUrl: 'boat.png',
@@ -96,14 +101,54 @@
     iconSize:     [24, 24], // size of the icon
     iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
   });
-  setInterval( () => {
+  var targetIcon = L.icon({
+    iconUrl: 'target.png',
+    iconSize:     [12, 12], // size of the icon
+    iconAnchor:   [6, 6], // point of the icon which will correspond to marker's location
+  });
+   setInterval( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
+      radius = Math.round(radius*10)/10;
+      $('#radiusValue').html(radius);
+    });
     $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
       $('#depthValue').html(depth);
     });
-  }, 1000);
-  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-      let latitude = data.position.value.latitude;
-      let longitude = data.position.value.longitude;
+    $.get('/signalk/v1/api/vessels', (vessels) => {
+      let detectedTargets = [];
+      for (let key in vessels) {
+	let vessel=vessels[key];
+	if (vessel.mmsi == mmsi) {
+	  continue;
+	}
+	if (!("navigation" in vessel) || !("position" in vessel.navigation)) {
+	  continue;
+	}
+	let position = vessel.navigation.position.value;
+	let distance = calculateDistance(position.latitude, position.longitude, latitude, longitude);
+	if (distance <= maxRadius * 5) {
+	  detectedTargets.push(vessel.mmsi);
+	  distance = Math.round(distance*10)/10;
+	  let name = vessel.name.split(' ')
+			   .map(w => w[0].toUpperCase() + w.substring(1).toLowerCase())
+   			   .join(' ');
+	  if (vessel.mmsi in target) {
+	    target[vessel.mmsi].setLatLng([position.latitude, position.longitude]);
+   	    target[vessel.mmsi]._popup.setContent(`${name} at ${distance} meters`);
+	  } else {
+            target[vessel.mmsi] = L.marker([position.latitude, position.longitude], {
+              icon: targetIcon
+	    }).addTo(map).bindPopup(`${name} at ${distance} meters`);
+	  }
+	}
+      }
+    });
+  }, 1500);
+  $.get('/signalk/v1/api/vessels/self', (data) => {
+      mmsi = data.mmsi;
+      data = data.navigation;
+      latitude = data.position.value.latitude;
+      longitude = data.position.value.longitude;
       let heading = data.headingTrue.value;
       if (heading) {
         heading = heading *  57.295779513; // Convert to degrees
@@ -123,7 +168,7 @@
         let anchorLatitude = anchorPosition.latitude;
         let anchorLongitude = anchorPosition.longitude;
         let currentRadius = data.anchor.currentRadius.value;
-        let maxRadius = data.anchor.maxRadius.value;
+        maxRadius = data.anchor.maxRadius.value;
         $('#radius').html(maxRadius);
         let anchorLatLng = L.latLng(anchorLatitude, anchorLongitude);
         anchorRadius = L.circle(anchorLatLng, maxRadius).addTo(map);
@@ -132,8 +177,8 @@
         }).addTo(map);
 	setInterval( () => {
   	  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-            let latitude = data.position.value.latitude;
-      	    let longitude = data.position.value.longitude;
+            latitude = data.position.value.latitude;
+      	    longitude = data.position.value.longitude;
       	    let heading = data.headingTrue.value;
       	    if (heading) {
               heading = heading *  57.295779513; // Convert to degrees
@@ -144,7 +189,7 @@
 	    boat.setLatLng(latlng); 
 	    boat.setRotationAngle(heading);
 	  });
- 	}, 1000*5);
+ 	}, 1000*1);
       } else {
 	$('#anchorUp').show();
       }
@@ -213,6 +258,23 @@
     });
   });
   
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371000; // Radius of the earth in m
+    var dLat = deg2rad(lat2-lat1);  // deg2rad below
+    var dLon = deg2rad(lon2-lon1);
+    var a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon/2) * Math.sin(dLon/2)
+      ;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c; // Distance in km
+    return d;
+  }
+
+  function deg2rad(deg) {
+    return deg * (Math.PI/180)
+  }
 </script>
 </body>
 </html>
