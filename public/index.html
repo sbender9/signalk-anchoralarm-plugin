@@ -106,6 +106,8 @@
     iconSize:     [12, 12], // size of the icon
     iconAnchor:   [6, 6], // point of the icon which will correspond to marker's location
   });
+  var urlParams = new URLSearchParams(window.location.search);
+
    setInterval( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
       radius = Math.round(radius*10)/10;
@@ -166,7 +168,11 @@
         heading = 0;
       }
       let latlng = L.latLng(latitude, longitude);
-      map.setView(latlng, 17);
+      zoom = 17;
+      if (urlParams.has('zoom')) {
+        zoom = urlParams.get('zoom');
+      }
+      map.setView(latlng, zoom);
       boat = L.marker(latlng, {
           rotationAngle: heading,
           icon: boatIcon
@@ -205,7 +211,6 @@
       }
   });
 
-  var urlParams = new URLSearchParams(window.location.search);
 
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenStreetMap (OSM)',
