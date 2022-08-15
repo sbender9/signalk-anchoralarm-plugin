@@ -12,7 +12,14 @@ If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API
 
 Point your Web Browser to http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/
 
-If you wish to have satellite view enabled by default, use http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/?satellite
+If you wish to have the satellite or openseamaps view enabled by default add the following
+
+| OpenStreetMap | Satellite | OpenSeaMap | Url String |
+| ------------- | --------- | ---------- | -----------|
+| X | - | - | / |
+| X | - | X | /?openseamap |
+| - | X | - | /?satellite |
+| - | X | X | /?satellite&openseamap |
 
 Note that you must be logged in to SignalK UI for this to work.
 

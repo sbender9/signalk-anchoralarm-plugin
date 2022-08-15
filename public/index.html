@@ -212,11 +212,20 @@
       maxZoom: 19 
   });
   osmLayer.addTo(map);
-  
+
   satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
       maxZoom: 18
   });
+
+  openSeaMapLayer = L.tileLayer('http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+      attribution: 'Map data from OpenSeaMap',
+      maxZoom: 19
+  });
+  if (urlParams.has('openseamap')) {
+    openSeaMapLayer.addTo(map);
+  }
+  
   
   if (urlParams.has('satellite')) {
     satelliteLayer.addTo(map);
@@ -224,10 +233,11 @@
 
   var baseMaps = {
     "OpenStreetMap": osmLayer,
+    "Satellite": satelliteLayer,
   };
 
   var overlayMaps = {
-    "Satellite": satelliteLayer
+    "OpenSeaMaps": openSeaMapLayer,
   };	
 
   var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
