@@ -157,7 +157,7 @@
       data = data.navigation;
       latitude = data.position.value.latitude;
       longitude = data.position.value.longitude;
-      let heading = data.headingTrue.value;
+      let heading = data.headingTrue?.value;
       if (heading) {
         heading = heading *  57.295779513; // Convert to degrees
       } else {
@@ -187,7 +187,7 @@
   	  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
             latitude = data.position.value.latitude;
       	    longitude = data.position.value.longitude;
-      	    let heading = data.headingTrue.value;
+      	    let heading = data.headingTrue?.value;
       	    if (heading) {
               heading = heading *  57.295779513; // Convert to degrees
       	    } else {
