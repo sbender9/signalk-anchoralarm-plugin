@@ -113,6 +113,8 @@
     });
     $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
       $('#depthValue').html(depth);
+    }).fail(() => {
+      $('#depthValue').html("~");
     });
     $.get('/signalk/v1/api/vessels', (vessels) => {
       let detectedTargets = [];
@@ -129,7 +131,7 @@
 	if (distance <= maxRadius * 5) {
 	  detectedTargets.push(vessel.mmsi);
 	  distance = Math.round(distance*10)/10;
-	  let name = vessel.name.split(' ')
+	  let name = vessel.name?.split(' ')
 			   .map(w => w[0].toUpperCase() + w.substring(1).toLowerCase())
    			   .join(' ');
 	  if (vessel.mmsi in target) {
