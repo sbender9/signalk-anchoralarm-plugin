@@ -204,6 +204,9 @@
 	$('#anchorUp').show();
       }
   });
+
+  var urlParams = new URLSearchParams(window.location.search);
+
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenStreetMap (OSM)',
       maxZoom: 19 
@@ -214,7 +217,20 @@
       attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
       maxZoom: 18
   });
-  satelliteLayer.addTo(map);
+  
+  if (urlParams.has('satellite')) {
+    satelliteLayer.addTo(map);
+  }
+
+  var baseMaps = {
+    "OpenStreetMap": osmLayer,
+  };
+
+  var overlayMaps = {
+    "Satellite": satelliteLayer
+  };	
+
+  var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
 
   $('#raiseAnchor').click( () => {
     let agree=confirm('Do you really want to disable your anchor alarm?');

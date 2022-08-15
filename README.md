@@ -12,6 +12,8 @@ If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API
 
 Point your Web Browser to http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/
 
+If you wish to have satellite view enabled by default, use http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/?satellite
+
 Note that you must be logged in to SignalK UI for this to work.
 
 ## REST API
