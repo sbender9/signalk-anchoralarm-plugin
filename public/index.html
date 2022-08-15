@@ -263,6 +263,15 @@
         $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
           location.reload();
         });
+      }).fail(() => {
+        let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
+        if (newRadius) {
+          $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
+            anchorRadius.setRadius(newRadius);
+            $('#radius').html(newRadius);
+          });
+        }
+        location.reload();      
       });
     });
   });
