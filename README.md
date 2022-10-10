@@ -23,6 +23,8 @@ If you wish to have the satellite or openseamaps view enabled by default add the
 
 Note that you must be logged in to SignalK UI for this to work.
 
+When a depth transducer is configured the plugin will default to an anchor alarm of Dx5. If no depth transducer can be found the web app will prompt for the anchor alarm radius when the anchor is droped.
+
 ## REST API
 
 ### When you drop the anchor in the water, Call dropAnchor:
