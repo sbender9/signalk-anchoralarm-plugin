@@ -273,6 +273,10 @@
         }
         location.reload();      
       });
+    }).fail((response) => {
+	if (response.status = 401) {
+	  location.href="/admin/#/login";
+	}
     });
   });
 
