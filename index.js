@@ -144,7 +144,9 @@ module.exports = function(app) {
         app.handleMessage(plugin.id, delta)
         
         configuration["position"] = { "latitude": value.latitude,
-                                      "longitude": value.longitude }
+                                      "longitude": value.longitude,
+                                      "altitude": value.altitude }
+        
         //configuration["radius"] = value.radius
         if ( configuration["radius"] ) {
           configuration["on"] = true
