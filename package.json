@@ -1,6 +1,6 @@
 {
   "name": "signalk-anchoralarm-plugin",
-  "version": "1.9.2",
+  "version": "1.9.4",
   "description": "Plugin that checks the vessel position to see if there's anchor drift",
   "main": "index.js",
   "scripts": {
@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "baconjs": "^0.7.88",
+    "geolib": "^3.3.3",
     "lodash": "^4.17.4"
   },
   "repository": {

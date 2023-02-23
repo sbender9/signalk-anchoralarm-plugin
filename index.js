@@ -17,16 +17,21 @@ const Bacon = require('baconjs');
 const _ = require('lodash')
 const path = require('path')
 const fs = require('fs')
+const geolib = require('geolib')
+
+const subscribrPeriod = 1000
 
 module.exports = function(app) {
   var plugin = {};
   var alarm_sent = false
-  var unsubscribe = undefined
+  let onStop = []
   var positionInterval
   var state
   var configuration
   var delayStartTime
   var lastPositionTime
+  var lastPosition
+  var lastTrueHeading
   var positionAlarmSent
   var saveOptionsTimer
 
@@ -57,6 +62,23 @@ module.exports = function(app) {
                                   `navigation.anchor.rodeLength`,
                                   putRodeLength)
       }
+
+      app.handleMessage(plugin.id, {
+        updates: [
+          {
+            meta: [
+              {
+                path: 'navigation.anchor.bearingTrue',
+                value: { units: 'rad' }
+              },
+              {
+                path: 'navigation.anchor.apparentBearing',
+                value: { units: 'rad' }
+              }
+            ]
+          }
+        ]
+      })
       
     } catch (e) {
       plugin.started = false
@@ -144,7 +166,9 @@ module.exports = function(app) {
         app.handleMessage(plugin.id, delta)
         
         configuration["position"] = { "latitude": value.latitude,
-                                      "longitude": value.longitude }
+                                      "longitude": value.longitude,
+                                      "altitude": value.altitude }
+        
         //configuration["radius"] = value.radius
         if ( configuration["radius"] ) {
           configuration["on"] = true
@@ -170,10 +194,8 @@ module.exports = function(app) {
     alarm_sent = false
     var delta = getAnchorDelta(app, null, null, null, false, null)
     app.handleMessage(plugin.id, delta)
-    if (unsubscribe) {
-      unsubscribe()
-      unsubscribe = null
-    }
+    onStop.forEach(f => f())
+    onStop = []
     if ( positionInterval ) {
       clearInterval(positionInterval)
       positionInterval = null
@@ -182,37 +204,71 @@ module.exports = function(app) {
 
   function startWatchingPosistion()
   {
-    unsubscribe = Bacon.combineWith(function(position) {
-      var state
-      lastPositionTime = Date.now()
-      state = checkPosition(app, plugin, configuration.radius,
-                            position, configuration.position)
-      var was_sent = alarm_sent
-      alarm_sent = state
-      if ( was_sent && !state )
+    app.subscriptionmanager.subscribe(
       {
-        //clear it
-        app.debug("clear_it")
-        var delta = getAnchorAlarmDelta(app, "normal")
-        app.handleMessage(plugin.id, delta)
-        delayStartTime = undefined
-      }
-      return state
-    }, ['navigation.position' ].map(app.streambundle.getSelfStream, app.streambundle)).changes().debounceImmediate(1000).onValue(state => {
-      sendAnchorAlarm(state, app, plugin)
-    })
+        context: 'vessels.self',
+        subscribe: [
+          {
+            path: 'navigation.position',
+            period: subscribrPeriod
+          },
+          {
+            path: 'navigation.headingTrue',
+            period: subscribrPeriod
+          }
+        ]
+      },
+      onStop,
+      (err) => {
+        app.error(err)
+        app.setProviderError(err)
+      },
+      (delta) => {
+        let position, trueHeading
+        
+        if ( delta.updates ) {
+          delta.updates.forEach(update => {
+            if ( update.values ) {
+              update.values.forEach(vp => {
+                if ( vp.path === 'navigation.position' ) {
+                  position = vp.value
+                } else if ( vp.path === 'navigation.headingTrue' ) {
+                  trueHeading = vp.value
+                }
+              })
+            }
+          })
+        }
 
-    positionInterval = setInterval(() => {
-      app.debug('checking last position...')
-      if ( !lastPositionTime || Date.now() - lastPositionTime > configuration.noPositionAlarmTime * 1000 ) {
-        positionAlarmSent = true
-        sendAnchorAlarm(configuration.state, app, plugin, 'No position received')
-      } else if ( !alarm_sent && positionAlarmSent ) {
-        var delta = getAnchorAlarmDelta(app, "normal")
-        app.handleMessage(plugin.id, delta)
-        positionAlarmSent = false
+        if ( position ) {
+          var state
+          lastPositionTime = Date.now()
+          lastPosition = position
+          state = checkPosition(app, plugin, configuration.radius,
+                                position, configuration.position)
+          var was_sent = alarm_sent
+          alarm_sent = state
+          if ( was_sent && !state )
+          {
+            //clear it
+            app.debug("clear_it")
+            var delta = getAnchorAlarmDelta(app, "normal")
+            app.handleMessage(plugin.id, delta)
+            delayStartTime = undefined
+          }
+
+          sendAnchorAlarm(state, app, plugin)
+        }
+
+        if ( typeof trueHeading !== 'undefined' || position ) {
+          if ( typeof trueHeading  !== 'undefined' ) {
+            lastTrueHeading = trueHeading
+          }
+          computeAnchorApparentBearing(lastPosition, configuration.position,
+                                       lastTrueHeading)
+        }
       }
-    }, 10000)
+    )
   }
 
   function raiseAnchor() {
@@ -233,11 +289,9 @@ module.exports = function(app) {
     delete configuration["radius"]
     configuration["on"] = false
 
-    if ( unsubscribe )
-    {
-      unsubscribe()
-      unsubscribe = null
-    }
+    onStop.forEach(f => f())
+    onStop = []
+    
     if ( positionInterval ) {
       clearInterval(positionInterval)
       positionInterval = null
@@ -262,19 +316,9 @@ module.exports = function(app) {
       else
       {
 
-        var heading = app.getSelfPath('navigation.headingTrue.value')
-        app.debug("heading: " + heading)
-        if ( typeof heading != 'undefined' )
-        {
-          var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
-          app.debug("gps_dist: " + gps_dist)
-          if ( typeof gps_dist != 'undefined' )
-          {
-            position = calc_position_from(app, position, heading, gps_dist)
-            app.debug("adjusted position by " + gps_dist)
-          }
-        }
-  
+        position = computeBowLocation(position,
+                                      app.getSelfPath('navigation.headingTrue.value'))
+        
         app.debug("set anchor position to: " + position.latitude + " " + position.longitude)
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
@@ -294,7 +338,7 @@ module.exports = function(app) {
           configuration.position.altitude = depth * -1;
         }
 
-        if ( unsubscribe == null )
+        if ( onStop.length === 0 )
           startWatchingPosistion()
 
         try {
@@ -581,7 +625,7 @@ module.exports = function(app) {
     }
   }
 
-  function getAnchorDelta(app, position,
+  function getAnchorDelta(app, vesselPosition, position,
                           currentRadius, maxRadius, isSet, depth)
   {
     var values
@@ -628,6 +672,14 @@ module.exports = function(app) {
           }
         */
       ]
+
+      let bowPosition = computeBowLocation(vesselPosition, app.getSelfPath('navigation.headingTrue.value'))
+      let bearing  = degsToRad(geolib.getRhumbLineBearing(bowPosition, position))
+
+      values.push(        {
+        path: 'navigation.anchor.bearingTrue',
+        value: bearing
+      })
 
       if ( currentRadius != null ) {
         values.push(        {
@@ -739,7 +791,7 @@ module.exports = function(app) {
     
     app.debug("distance: " + meters + ", radius: " + radius);
     
-    var delta = getAnchorDelta(app, anchor_position, meters, radius, false)
+    var delta = getAnchorDelta(app, possition, anchor_position, meters, radius, false)
     app.handleMessage(plugin.id, delta)
 
     if ( radius != null ) {
@@ -770,7 +822,66 @@ module.exports = function(app) {
       }
     }
   
+    
     return null
+  }
+
+  function computeBowLocation(position, heading) {
+    if ( typeof heading != 'undefined' )
+    {
+      var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
+      app.debug("gps_dist: " + gps_dist)
+      if ( typeof gps_dist != 'undefined' )
+      {
+        position = calc_position_from(app, position, heading, gps_dist)
+        app.debug("adjusted position by " + gps_dist)
+      }
+    }
+    return position
+  }
+
+  function computeAnchorApparentBearing(vesselPosition,
+                                        anchorPosition,
+                                        trueHeading)
+  {
+    if (vesselPosition && anchorPosition && typeof trueHeading  !== 'undefined' ) {
+      let bowPosition = computeBowLocation(vesselPosition, trueHeading)
+      let bearing = degsToRad(geolib.getRhumbLineBearing(bowPosition,
+                                                         anchorPosition))
+
+
+      /* there's got to be a better way?? */
+      let offset
+      if ( bearing > Math.PI ) {
+        offset = Math.PI*2 - bearing
+      } else {
+        offset = -bearing
+      }
+
+      let zeroed = trueHeading + offset
+      let apparent
+      if ( zeroed < Math.PI ) {
+        apparent = -zeroed
+      } else {
+        apparent = zeroed
+        if ( apparent > Math.PI ) {
+          apparent = (Math.PI*2 - apparent)
+        }
+      }
+
+      app.debug("apparent " + radsToDeg(trueHeading) + ", " + radsToDeg(bearing) + ", " + apparent + ", " + radsToDeg(apparent))
+      
+      app.handleMessage(plugin.id, {
+        updates: [
+          {
+            values: [ {
+              path: 'navigation.anchor.apparentBearing',
+              value: apparent
+            } ]
+          }
+        ]
+      })
+    }
   }
 
   function sendAnchorAlarm(state, app, plugin, msg)
