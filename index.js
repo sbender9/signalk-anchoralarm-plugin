@@ -297,6 +297,19 @@ module.exports = function(app) {
       positionInterval = null
     }
 
+    app.handleMessage(plugin.id, {
+      updates: [
+        {
+          values: [ {
+            path: 'navigation.anchor.apparentBearing',
+            value: null
+          }, {
+            path: 'navigation.anchor.bearingTrue',
+            value: null
+          }
+                  ]
+        }]})
+
     savePluginOptions()
   }
 
@@ -770,9 +783,6 @@ module.exports = function(app) {
     var delta = {
       "updates": [
         {
-          "source": {
-            "label": "anchoralarm"
-          },
           "values": values
         }
       ]
