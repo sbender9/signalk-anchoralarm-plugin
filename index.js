@@ -62,6 +62,23 @@ module.exports = function(app) {
                                   `navigation.anchor.rodeLength`,
                                   putRodeLength)
       }
+
+      app.handleMessage(plugin.id, {
+        updates: [
+          {
+            meta: [
+              {
+                path: 'navigation.anchor.bearingTrue',
+                value: { units: 'rad' }
+              },
+              {
+                path: 'navigation.anchor.apparentBearing',
+                value: { units: 'rad' }
+              }
+            ]
+          }
+        ]
+      })
       
     } catch (e) {
       plugin.started = false
