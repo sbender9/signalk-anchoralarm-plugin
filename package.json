@@ -7,8 +7,13 @@
     "test": "$NODE $npm_package_main"
   },
   "keywords": [
-    "signalk-node-server-plugin"
+    "signalk-node-server-plugin",
+    "signalk-webapp"
   ],
+  "signalk": {
+    "appIcon": "anchoralarm.png",
+    "displayName": "Anchor Alarm"
+  },
   "author": {
     "name": "Scott Bender",
     "email": "scott@scottbender.net"

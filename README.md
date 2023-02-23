@@ -6,7 +6,26 @@ SignalK Node Server Anchor Alarm Plugin
 
 Then use WilhelmSK to set the alarm (https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8)
 
-If not using WilhelmSK, you can setup the alarm using the REST API.
+If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API.
+
+## Web App
+
+Point your Web Browser to http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/
+
+If you wish to have the satellite or openseamaps view enabled by default add the following
+
+| OpenStreetMap | Satellite | OpenSeaMap | Url String |
+| ------------- | --------- | ---------- | -----------|
+| X | - | - | / |
+| X | - | X | /?openseamap |
+| - | X | - | /?satellite |
+| - | X | X | /?satellite&openseamap |
+
+Note that you must be logged in to SignalK UI for this to work.
+
+When a depth transducer is configured the plugin will default to an anchor alarm of Dx5. If no depth transducer can be found the web app will prompt for the anchor alarm radius when the anchor is droped.
+
+## REST API
 
 ### When you drop the anchor in the water, Call dropAnchor:
 
