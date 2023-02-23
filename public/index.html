@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignalK Anchor Alarm</title>
+    <script src="jquery-3.5.1.min.js"></script>
+    <link rel="stylesheet" href="leaflet.css"/>
+    <script src="leaflet.js"></script>
+    <script src="leaflet.rotatedMarker.js"></script>
+    <style>
+       body {
+          padding: 0;
+          margin: 0;
+       }
+       html, body, #map {
+          height: 100%;
+          width: 100%;
+          z-index: 1;
+          position: relative;
+       }
+
+       #map_container {
+          height: 100%;
+          width: 100%;
+          z-index: 1;
+          position: relative;
+       }
+
+       #map_toggle {
+          position: absolute;
+          top: 20px;
+          left: 50%;
+	  width: 300px;
+	  height: 50px;
+	  margin-left: -150px;
+          z-index: 99;
+	  opacity: 1;
+	  border-radius: 5px;
+	  text-align: center;
+	  line-height: 40px;
+       }
+       #info {
+          position: absolute;
+          bottom: 120px;
+          left: 50%;
+	  width: 200px;
+	  height: 50px;
+	  margin-left: -100px;
+          z-index: 99;
+	  padding-top: 10px;
+	  opacity: 1;
+	  border-radius: 5px;
+	  text-align: center;
+	  font-size: 26pt;
+	  color: white;
+       }
+        button {
+	  font-size: 23px;
+       }
+       #anchorDown, #anchorUp {
+	  display: none;
+       }
+    </style>
+</head>
+<body>
+<div id="map_container">
+  <div id="map"></div>
+  <div id="map_toggle">
+    <div id='anchorDown'>
+      <button id='raiseAnchor'>Raise Anchor</button><br/>
+      <button id='decreaseRadius'> - </button>&nbsp;
+      <button id='setRadius'><span id='radiusValue'>0</span>/<span id='radius'>0</span>m</button>&nbsp;
+      <button id='increaseRadius'> + </button>
+    </div>
+    <div id='anchorUp'>
+      <button id='dropAnchor'>Drop Anchor</button><br/>
+    </div>
+  </div>
+  <div id="info">
+    <button id='setRadius'><span id='depthValue'>0</span>m</button>
+ </div>
+<script>
+  var boat;
+  var anchor;
+  var anchorRadius;
+  var mmsi;
+  var maxRadius;
+  var latitude;
+  var longitude;
+  var target = {};
+  var map = L.map('map').setView([39.8283, -98.5795], 5);
+  var boatIcon = L.icon({
+    iconUrl: 'boat.png',
+    iconSize:     [24, 48], // size of the icon
+    iconAnchor:   [24, 24], // point of the icon which will correspond to marker's location
+  });
+  var anchorIcon = L.icon({
+    iconUrl: 'anchor.png',
+    iconSize:     [24, 24], // size of the icon
+    iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
+  });
+  var targetIcon = L.icon({
+    iconUrl: 'target.png',
+    iconSize:     [12, 12], // size of the icon
+    iconAnchor:   [6, 6], // point of the icon which will correspond to marker's location
+  });
+  var urlParams = new URLSearchParams(window.location.search);
+
+   setInterval( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
+      radius = Math.round(radius*10)/10;
+      $('#radiusValue').html(radius);
+    });
+    $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+      $('#depthValue').html(depth);
+    }).fail(() => {
+      $('#depthValue').html("~");
+    });
+    $.get('/signalk/v1/api/vessels', (vessels) => {
+      let detectedTargets = [];
+      for (let key in vessels) {
+	let vessel=vessels[key];
+	if (vessel.mmsi == mmsi) {
+	  continue;
+	}
+	if (!("navigation" in vessel) || !("position" in vessel.navigation)) {
+	  continue;
+	}
+	let position = vessel.navigation.position.value;
+	let distance = calculateDistance(position.latitude, position.longitude, latitude, longitude);
+	if (distance <= maxRadius * 5) {
+	  detectedTargets.push(vessel.mmsi);
+	  distance = Math.round(distance*10)/10;
+	  let name = vessel.name?.split(' ')
+			   .map(w => w[0].toUpperCase() + w.substring(1).toLowerCase())
+   			   .join(' ');
+	  if (vessel.mmsi in target) {
+	    target[vessel.mmsi].setLatLng([position.latitude, position.longitude]);
+   	    target[vessel.mmsi]._popup.setContent(`${name} at ${distance} meters`);
+	  } else {
+            target[vessel.mmsi] = L.marker([position.latitude, position.longitude], {
+              icon: targetIcon
+	    });
+	    target[vessel.mmsi].addTo(map).bindPopup(`${name} at ${distance} meters`);
+	  }
+	}
+      }
+      for (let mmsi in target) {
+ 	if (!detectedTargets.includes(mmsi)) {
+	  console.log(`${mmsi} moved out of range`);
+	  map.removeLayer(target[mmsi]);
+	  delete target[mmsi];
+        }
+      }
+    });
+  }, 1500);
+  $.get('/signalk/v1/api/vessels/self', (data) => {
+      mmsi = data.mmsi;
+      data = data.navigation;
+      latitude = data.position.value.latitude;
+      longitude = data.position.value.longitude;
+      let heading = data.headingTrue?.value;
+      if (heading) {
+        heading = heading *  57.295779513; // Convert to degrees
+      } else {
+        heading = 0;
+      }
+      let latlng = L.latLng(latitude, longitude);
+      zoom = 17;
+      if (urlParams.has('zoom')) {
+        zoom = urlParams.get('zoom');
+      }
+      map.setView(latlng, zoom);
+      boat = L.marker(latlng, {
+          rotationAngle: heading,
+          icon: boatIcon
+      }).addTo(map)
+
+      if ((data.anchor) && (data.anchor.position) && (data.anchor.position.value)) {
+	$('#anchorDown').show();
+        let anchorPosition = data.anchor.position.value;	
+        let anchorLatitude = anchorPosition.latitude;
+        let anchorLongitude = anchorPosition.longitude;
+        let currentRadius = data.anchor.currentRadius.value;
+        maxRadius = data.anchor.maxRadius.value;
+        $('#radius').html(maxRadius);
+        let anchorLatLng = L.latLng(anchorLatitude, anchorLongitude);
+        anchorRadius = L.circle(anchorLatLng, maxRadius).addTo(map);
+        anchor = L.marker(anchorLatLng, {
+            icon: anchorIcon
+        }).addTo(map);
+	setInterval( () => {
+  	  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+            latitude = data.position.value.latitude;
+      	    longitude = data.position.value.longitude;
+      	    let heading = data.headingTrue?.value;
+      	    if (heading) {
+              heading = heading *  57.295779513; // Convert to degrees
+      	    } else {
+              heading = 0;
+      	    }
+      	    let latlng = L.latLng(latitude, longitude);
+	    boat.setLatLng(latlng); 
+	    boat.setRotationAngle(heading);
+	  });
+ 	}, 1000*1);
+      } else {
+	$('#anchorUp').show();
+      }
+  });
+
+
+  osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data from OpenStreetMap (OSM)',
+      maxZoom: 19 
+  });
+  osmLayer.addTo(map);
+
+  satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 18
+  });
+
+  openSeaMapLayer = L.tileLayer('http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+      attribution: 'Map data from OpenSeaMap',
+      maxZoom: 19
+  });
+  if (urlParams.has('openseamap')) {
+    openSeaMapLayer.addTo(map);
+  }
+  
+  
+  if (urlParams.has('satellite')) {
+    satelliteLayer.addTo(map);
+  }
+
+  var baseMaps = {
+    "OpenStreetMap": osmLayer,
+    "Satellite": satelliteLayer,
+  };
+
+  var overlayMaps = {
+    "OpenSeaMaps": openSeaMapLayer,
+  };	
+
+  var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+  $('#raiseAnchor').click( () => {
+    let agree=confirm('Do you really want to disable your anchor alarm?');
+    if (agree) {
+      $.post('/plugins/anchoralarm/raiseAnchor', () => {
+        location.reload();
+      });
+    }
+  });
+
+  $('#dropAnchor').click( () => {
+    $.post('/plugins/anchoralarm/dropAnchor', () => {
+      $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+        let radius = Math.round(parseInt(depth)*5);
+        $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+          location.reload();
+        });
+      }).fail(() => {
+        let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
+        if (newRadius) {
+          $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
+            anchorRadius.setRadius(newRadius);
+            $('#radius').html(newRadius);
+          });
+        }
+        location.reload();      
+      });
+    }).fail((response) => {
+	if (response.status = 401) {
+	  location.href="/admin/#/login";
+	}
+    });
+  });
+
+  $('#setRadius').click( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
+      let newRadius = prompt('Enter Radius (m)', radius)
+      if (newRadius) {
+        $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
+          anchorRadius.setRadius(newRadius);
+          $('#radius').html(newRadius);
+        });
+      }
+    });
+  });
+
+  $('#increaseRadius').click( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
+      radius = parseInt(radius) + 5;
+      $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+        anchorRadius.setRadius(radius);
+        $('#radius').html(radius);
+      });
+    });
+  });
+
+  $('#decreaseRadius').click( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
+      radius = parseInt(radius) - 5;
+      $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+        anchorRadius.setRadius(radius);
+        $('#radius').html(radius);
+      });
+    });
+  });
+  
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    var R = 6371000; // Radius of the earth in m
+    var dLat = deg2rad(lat2-lat1);  // deg2rad below
+    var dLon = deg2rad(lon2-lon1);
+    var a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+      Math.sin(dLon/2) * Math.sin(dLon/2)
+      ;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    var d = R * c; // Distance in km
+    return d;
+  }
+
+  function deg2rad(deg) {
+    return deg * (Math.PI/180)
+  }
+</script>
+</body>
+</html>
