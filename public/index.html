@@ -90,6 +90,7 @@
   var latitude;
   var longitude;
   var target = {};
+
   var map = L.map('map').setView([39.8283, -98.5795], 5);
   var boatIcon = L.icon({
     iconUrl: 'boat.png',
@@ -108,7 +109,21 @@
   });
   var urlParams = new URLSearchParams(window.location.search);
 
-   setInterval( () => {
+  setInterval( () => {
+    $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+      latitude = data.position.value.latitude;
+      longitude = data.position.value.longitude;
+      let heading = data.headingTrue?.value;
+      if (heading) {
+        heading = heading *  57.295779513; // Convert to degrees
+      } else {
+        heading = 0;
+      }
+      let latlng = L.latLng(latitude, longitude);
+      boat.setLatLng(latlng); 
+      boat.setRotationAngle(heading);
+    });
+
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
       radius = Math.round(radius*10)/10;
       $('#radiusValue').html(radius);
@@ -118,6 +133,7 @@
     }).fail(() => {
       $('#depthValue').html("~");
     });
+
     $.get('/signalk/v1/api/vessels', (vessels) => {
       let detectedTargets = [];
       for (let key in vessels) {
@@ -133,17 +149,14 @@
 	if (distance <= maxRadius * 5) {
 	  detectedTargets.push(vessel.mmsi);
 	  distance = Math.round(distance*10)/10;
-	  let name = vessel.name?.split(' ')
-			   .map(w => w[0].toUpperCase() + w.substring(1).toLowerCase())
-   			   .join(' ');
 	  if (vessel.mmsi in target) {
 	    target[vessel.mmsi].setLatLng([position.latitude, position.longitude]);
-   	    target[vessel.mmsi]._popup.setContent(`${name} at ${distance} meters`);
+   	    target[vessel.mmsi]._popup.setContent(`${vessel.name} at ${distance} meters`);
 	  } else {
             target[vessel.mmsi] = L.marker([position.latitude, position.longitude], {
               icon: targetIcon
 	    });
-	    target[vessel.mmsi].addTo(map).bindPopup(`${name} at ${distance} meters`);
+	    target[vessel.mmsi].addTo(map).bindPopup(`${vessel.name} at ${distance} meters`);
 	  }
 	}
       }
@@ -156,6 +169,7 @@
       }
     });
   }, 1500);
+
   $.get('/signalk/v1/api/vessels/self', (data) => {
       mmsi = data.mmsi;
       data = data.navigation;
@@ -179,66 +193,33 @@
       }).addTo(map)
 
       if ((data.anchor) && (data.anchor.position) && (data.anchor.position.value)) {
-	$('#anchorDown').show();
         let anchorPosition = data.anchor.position.value;	
-        let anchorLatitude = anchorPosition.latitude;
-        let anchorLongitude = anchorPosition.longitude;
-        let currentRadius = data.anchor.currentRadius.value;
-        maxRadius = data.anchor.maxRadius.value;
-        $('#radius').html(maxRadius);
-        let anchorLatLng = L.latLng(anchorLatitude, anchorLongitude);
-        anchorRadius = L.circle(anchorLatLng, maxRadius).addTo(map);
-        anchor = L.marker(anchorLatLng, {
-            icon: anchorIcon
-        }).addTo(map);
-	setInterval( () => {
-  	  $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-            latitude = data.position.value.latitude;
-      	    longitude = data.position.value.longitude;
-      	    let heading = data.headingTrue?.value;
-      	    if (heading) {
-              heading = heading *  57.295779513; // Convert to degrees
-      	    } else {
-              heading = 0;
-      	    }
-      	    let latlng = L.latLng(latitude, longitude);
-	    boat.setLatLng(latlng); 
-	    boat.setRotationAngle(heading);
-	  });
- 	}, 1000*1);
+        let radius = data.anchor.maxRadius.value;
+	dropAnchor(anchorPosition, radius);
       } else {
 	$('#anchorUp').show();
       }
   });
 
+  satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+      maxZoom: 19
+  });
+  satelliteLayer.addTo(map);
 
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenStreetMap (OSM)',
       maxZoom: 19 
-  });
-  osmLayer.addTo(map);
-
-  satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 18
   });
 
   openSeaMapLayer = L.tileLayer('http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenSeaMap',
       maxZoom: 19
   });
-  if (urlParams.has('openseamap')) {
-    openSeaMapLayer.addTo(map);
-  }
-  
-  
-  if (urlParams.has('satellite')) {
-    satelliteLayer.addTo(map);
-  }
 
   var baseMaps = {
     "OpenStreetMap": osmLayer,
-    "Satellite": satelliteLayer,
+    "Satellite": satelliteLayer
   };
 
   var overlayMaps = {
@@ -251,7 +232,7 @@
     let agree=confirm('Do you really want to disable your anchor alarm?');
     if (agree) {
       $.post('/plugins/anchoralarm/raiseAnchor', () => {
-        location.reload();
+        raiseAnchor();
       });
     }
   });
@@ -261,17 +242,17 @@
       $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
         let radius = Math.round(parseInt(depth)*5);
         $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-          location.reload();
+          $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+	    dropAnchor(data.position.value, radius);
+	  });
         });
       }).fail(() => {
         let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
         if (newRadius) {
           $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-            anchorRadius.setRadius(newRadius);
-            $('#radius').html(newRadius);
+	    dropAnchor(data.position, newRadius);
           });
         }
-        location.reload();      
       });
     }).fail((response) => {
 	if (response.status = 401) {
@@ -294,7 +275,11 @@
 
   $('#increaseRadius').click( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius) + 5;
+      radius = parseInt(radius);
+      if (isNaN(radius)) {
+        return;
+      }
+      radius = radius + 5;
       $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
         anchorRadius.setRadius(radius);
         $('#radius').html(radius);
@@ -304,14 +289,40 @@
 
   $('#decreaseRadius').click( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius) - 5;
+      radius = parseInt(radius);
+      if (isNaN(radius)) {
+        return;
+      }
+      radius = radius - 5;
       $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
         anchorRadius.setRadius(radius);
         $('#radius').html(radius);
       });
     });
   });
-  
+
+  function dropAnchor(position, radius) {
+    $('#anchorDown').show();
+    $('#anchorUp').hide();
+    let anchorLatitude = position.latitude;
+    let anchorLongitude = position.longitude;
+    maxRadius = radius;
+
+    $('#radius').html(maxRadius);
+    let anchorLatLng = L.latLng(anchorLatitude, anchorLongitude);
+    anchorRadius = L.circle(anchorLatLng, maxRadius).addTo(map);
+    anchor = L.marker(anchorLatLng, {
+      icon: anchorIcon
+    }).addTo(map);
+  }
+
+  function raiseAnchor(position, radius) {
+    map.removeLayer(anchor);
+    map.removeLayer(anchorRadius);
+    $('#anchorUp').show();
+    $('#anchorDown').hide();
+  }
+
   function calculateDistance(lat1, lon1, lat2, lon2) {
     var R = 6371000; // Radius of the earth in m
     var dLat = deg2rad(lat2-lat1);  // deg2rad below
