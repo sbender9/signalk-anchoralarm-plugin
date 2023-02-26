@@ -275,7 +275,11 @@
 
   $('#increaseRadius').click( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius) + 5;
+      radius = parseInt(radius);
+      if (isNaN(radius)) {
+        return;
+      }
+      radius = radius + 5;
       $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
         anchorRadius.setRadius(radius);
         $('#radius').html(radius);
@@ -285,7 +289,11 @@
 
   $('#decreaseRadius').click( () => {
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius) - 5;
+      radius = parseInt(radius);
+      if (isNaN(radius)) {
+        return;
+      }
+      radius = radius - 5;
       $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
         anchorRadius.setRadius(radius);
         $('#radius').html(radius);
