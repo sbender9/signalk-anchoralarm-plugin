@@ -238,11 +238,13 @@
   });
 
   $('#dropAnchor').click( () => {
-    $.post('/plugins/anchoralarm/dropAnchor', (data) => {
+    $.post('/plugins/anchoralarm/dropAnchor', () => {
       $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
         let radius = Math.round(parseInt(depth)*5);
         $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-	  dropAnchor(data.position, radius);
+          $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+	    dropAnchor(data.position.value, radius);
+	  });
         });
       }).fail(() => {
         let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);

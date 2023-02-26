@@ -356,13 +356,7 @@ module.exports = function(app) {
 
         try {
           savePluginOptions()
-          res.send({
-	    "position": {
-	      "latitude": position.latitude,
-	      "longitude": position.longitude
-	    },
-	    "radius": radius
-	  })
+          res.send('ok')
         } catch ( err ) {
           app.error(err)
           res.status(500)
