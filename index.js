@@ -121,7 +121,7 @@ module.exports = function(app) {
     configuration["radius"] = value
     if ( configuration["position"] ) {
       configuration["on"] = true
-      if ( unsubscribe == null )
+      if ( onStop.length === 0 )
         startWatchingPosistion()
     }
 
@@ -172,7 +172,7 @@ module.exports = function(app) {
         //configuration["radius"] = value.radius
         if ( configuration["radius"] ) {
           configuration["on"] = true
-          if ( unsubscribe == null )
+          if ( onStop.length === 0 )
             startWatchingPosistion()
         }
 
@@ -543,8 +543,8 @@ module.exports = function(app) {
       if ( depth ) {
         configuration.position.altitude = depth * -1
       }
-
-      if ( unsubscribe == null )
+    
+      if ( onStop.length === 0 )
         startWatchingPosistion()
     
       try {
