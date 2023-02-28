@@ -121,8 +121,7 @@ module.exports = function(app) {
     configuration["radius"] = value
     if ( configuration["position"] ) {
       configuration["on"] = true
-      if ( onStop.length === 0 )
-        startWatchingPosistion()
+      startWatchingPosistion()
     }
 
     try {
@@ -162,7 +161,7 @@ module.exports = function(app) {
       if ( value == null ) {
         raiseAnchor()
       } else {
-        var delta = getAnchorDelta(app, value, null, configuration["radius"], true, null);
+        var delta = getAnchorDelta(app, null, value, null, configuration["radius"], true, null);
         app.handleMessage(plugin.id, delta)
         
         configuration["position"] = { "latitude": value.latitude,
@@ -172,8 +171,7 @@ module.exports = function(app) {
         //configuration["radius"] = value.radius
         if ( configuration["radius"] ) {
           configuration["on"] = true
-          if ( onStop.length === 0 )
-            startWatchingPosistion()
+          startWatchingPosistion()
         }
 
         savePluginOptions()
@@ -192,18 +190,26 @@ module.exports = function(app) {
       app.handleMessage(plugin.id, delta)
     }
     alarm_sent = false
-    var delta = getAnchorDelta(app, null, null, null, false, null)
+    var delta = getAnchorDelta(app, null, null, null, null, false, null)
     app.handleMessage(plugin.id, delta)
-    onStop.forEach(f => f())
-    onStop = []
+    stopWatchingPosition()
     if ( positionInterval ) {
       clearInterval(positionInterval)
       positionInterval = null
     }
   }
 
+  function stopWatchingPosition()
+  {
+    onStop.forEach(f => f())
+    onStop = []
+  }
+
   function startWatchingPosistion()
   {
+    if ( onStop.length > 0 )
+      return
+
     app.subscriptionmanager.subscribe(
       {
         context: 'vessels.self',
@@ -274,7 +280,7 @@ module.exports = function(app) {
   function raiseAnchor() {
     app.debug("raise anchor")
     
-    var delta = getAnchorDelta(app, null, null, null, false, null)
+    var delta = getAnchorDelta(app, null, null, null, null, false, null)
     app.handleMessage(plugin.id, delta)
     
     if ( alarm_sent )
@@ -289,8 +295,7 @@ module.exports = function(app) {
     delete configuration["radius"]
     configuration["on"] = false
 
-    onStop.forEach(f => f())
-    onStop = []
+    stopWatchingPosition()
     
     if ( positionInterval ) {
       clearInterval(positionInterval)
@@ -316,11 +321,11 @@ module.exports = function(app) {
 
   plugin.registerWithRouter = function(router) {
     router.post("/dropAnchor", (req, res) => {
-      var position = app.getSelfPath('navigation.position')
-      if ( position && position.value )
-        position = position.value
+      var vesselPosition = app.getSelfPath('navigation.position')
+      if ( vesselPosition && vesselPosition.value )
+        vesselPosition = vesselPosition.value
       
-      if ( typeof position == 'undefined' )
+      if ( typeof vesselPosition == 'undefined' )
       {
         app.debug("no position available")
         res.status(401)
@@ -329,14 +334,14 @@ module.exports = function(app) {
       else
       {
 
-        position = computeBowLocation(position,
+        let position = computeBowLocation(vesselPosition,
                                       app.getSelfPath('navigation.headingTrue.value'))
         
         app.debug("set anchor position to: " + position.latitude + " " + position.longitude)
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
           radius = null
-        var delta = getAnchorDelta(app, position, 0, radius, true, null);
+        var delta = getAnchorDelta(app, vesselPosition, position, 0, radius, true, null);
         app.handleMessage(plugin.id, delta)
 
         app.debug("anchor delta: " + JSON.stringify(delta))
@@ -351,8 +356,7 @@ module.exports = function(app) {
           configuration.position.altitude = depth * -1;
         }
 
-        if ( onStop.length === 0 )
-          startWatchingPosistion()
+        startWatchingPosistion()
 
         try {
           savePluginOptions()
@@ -366,7 +370,7 @@ module.exports = function(app) {
     })
     
     router.post("/setRadius", (req, res) => {
-      position = app.getSelfPath('navigation.position')
+      let position = app.getSelfPath('navigation.position')
       if ( position.value )
         position = position.value
       if ( typeof position == 'undefined' )
@@ -396,7 +400,7 @@ module.exports = function(app) {
 
         app.debug("set anchor radius: " + radius)
 
-        var delta = getAnchorDelta(app, configuration.position, null,
+        var delta = getAnchorDelta(app, position, configuration.position, null,
                                    radius, false, null);
         app.handleMessage(plugin.id, delta)
         
@@ -429,7 +433,7 @@ module.exports = function(app) {
 
       var maxRadius = app.getSelfPath('navigation.anchor.maxRadius.value')
 
-      var delta = getAnchorDelta(app, position, null,
+      var delta = getAnchorDelta(app, null, position, null,
                                  maxRadius, false);
 
       app.debug("setAnchorPosition: " + JSON.stringify(delta))
@@ -527,7 +531,7 @@ module.exports = function(app) {
 
       var newposition = calc_position_from(app, position, heading, curRadius)
 
-      var delta = getAnchorDelta(app, newposition, curRadius,
+      var delta = getAnchorDelta(app, position, newposition, curRadius,
                                  maxRadius, true, depth);
       app.handleMessage(plugin.id, delta)
       
@@ -544,8 +548,7 @@ module.exports = function(app) {
         configuration.position.altitude = depth * -1
       }
     
-      if ( onStop.length === 0 )
-        startWatchingPosistion()
+      startWatchingPosistion()
     
       try {
         savePluginOptions()
@@ -642,6 +645,11 @@ module.exports = function(app) {
                           currentRadius, maxRadius, isSet, depth)
   {
     var values
+
+    if ( vesselPosition == null )
+    {
+      vesselPosition = app.getSelfPath('navigation.position.value')
+    }
 
     if ( position )
     {
