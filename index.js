@@ -34,9 +34,12 @@ module.exports = function(app) {
   var lastTrueHeading
   var positionAlarmSent
   var saveOptionsTimer
+  
+  var positionHistory = []
 
   plugin.start = function(props) {
     configuration = props
+    positionHistory = []
     try {
       var isOn = configuration['on']
       var position = configuration['position']
@@ -50,6 +53,7 @@ module.exports = function(app) {
       }
 
       if ( app.registerActionHandler ) {
+
         app.registerActionHandler('vessels.self',
                                   `navigation.anchor.position`,
                                   putPosition)
@@ -181,7 +185,7 @@ module.exports = function(app) {
       app.error(err)
       return {state: 'FAILURE', message: err.message}
     }
-  }
+  }   
     
   plugin.stop = function() {
     if ( alarm_sent )
@@ -247,6 +251,12 @@ module.exports = function(app) {
         }
 
         if ( position ) {
+          
+          //keep a 60 min history of positions.
+          positionHistory.push([position.latitude, position.longitude]);
+          while (positionHistory.length > 3600)
+            positionHistory.shift()
+          
           var state
           lastPositionTime = Date.now()
           lastPosition = position
@@ -414,6 +424,16 @@ module.exports = function(app) {
           res.status(500)
           res.send("can't save config")
         }
+      }
+    })
+
+    router.get("/positionHistory", (req, res) => {
+      try {
+        res.send(JSON.stringify(positionHistory))
+      } catch ( err ) {
+        app.error(err)
+        res.status(500)
+        res.send("can't load history")
       }
     })
 

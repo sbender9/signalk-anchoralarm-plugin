@@ -79,7 +79,7 @@
     </div>
   </div>
   <div id="info">
-    <button id='setRadius'><span id='depthValue'>0</span>m</button>
+    <button id='setRadius'>Depth: <span id='depthValue'>0</span>m</button>
  </div>
 <script>
   var boat;
@@ -108,6 +108,8 @@
     iconAnchor:   [6, 6], // point of the icon which will correspond to marker's location
   });
   var urlParams = new URLSearchParams(window.location.search);
+  var positionHistory = [];
+  var historyLine = 
 
   setInterval( () => {
     $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
@@ -122,6 +124,8 @@
       let latlng = L.latLng(latitude, longitude);
       boat.setLatLng(latlng); 
       boat.setRotationAngle(heading);
+      
+      historyLine.addLatLng(latlng)
     });
 
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
@@ -199,22 +203,31 @@
       } else {
 	$('#anchorUp').show();
       }
+      
+      $.get('/plugins/anchoralarm/positionHistory', (data) => {
+        jdata = JSON.parse(data)
+        if (jdata.length) {
+          positionHistory = jdata;
+          console.log(positionHistory[0])
+          historyLine = L.polyline(positionHistory, {color: 'red'}).addTo(map);
+        }
+      });
   });
 
   satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 19
+      maxZoom: 20
   });
   satelliteLayer.addTo(map);
 
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenStreetMap (OSM)',
-      maxZoom: 19 
+      maxZoom: 20 
   });
 
   openSeaMapLayer = L.tileLayer('http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
       attribution: 'Map data from OpenSeaMap',
-      maxZoom: 19
+      maxZoom: 20
   });
 
   var baseMaps = {
