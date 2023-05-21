@@ -226,6 +226,7 @@
         let anchorPosition = data.anchor.position.value;	
         let anchorCoord = L.latLng(anchorPosition.latitude, anchorPosition.longitude);
         let radius = parseInt(data.anchor.maxRadius.value);
+        $('#radiusValue').html(Math.round(data.anchor.currentRadius.value*10)/10)
         dropAnchor(anchorCoord, radius);
       } else {
         //show our potential anchor spot.
