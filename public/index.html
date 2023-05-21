@@ -243,6 +243,7 @@
         if (!isAnchored) {
           crosshair.setLatLng(map.getCenter());
           anchorRadius.setLatLng(map.getCenter());
+          uiSetRadiusColor()
         }
       });
       
@@ -339,8 +340,18 @@
   });
   
   function uiSetRadius(radius) {
-    $('#radius').html(maxRadius);
+    $('#radius').html(radius);
     anchorRadius.setRadius(radius);
+    uiSetRadiusColor()
+  }
+  
+  function uiSetRadiusColor() {
+    if (calculateDistance(anchorRadius.getLatLng().lat, anchorRadius.getLatLng().lng, boat.getLatLng().lat, boat.getLatLng().lng) > anchorRadius.getRadius())
+      anchorRadius.setStyle({'color': 'red'})
+    else if (isAnchored)
+      anchorRadius.setStyle({'color': 'blue'})
+    else
+      anchorRadius.setStyle({'color': 'green'})
   }
 
   function dropAnchor(position, radius) {
