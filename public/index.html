@@ -69,13 +69,15 @@
   <div id="map"></div>
   <div id="map_toggle">
     <div id='anchorDown'>
-      <button id='raiseAnchor'>Raise Anchor</button><br/>
-      <button id='decreaseRadius'> - </button>&nbsp;
-      <button id='setRadius'><span id='radiusValue'>0</span>/<span id='radius'>0</span>m</button>&nbsp;
-      <button id='increaseRadius'> + </button>
+      <button id='raiseAnchor'>Raise Anchor</button>
     </div>
     <div id='anchorUp'>
       <button id='dropAnchor'>Drop Anchor</button><br/>
+    </div>
+    <div id='radiusControl'>
+      <button id='decreaseRadius'> - </button>&nbsp;
+      <button id='setRadius'><span id='radiusValue'>0</span>/<span id='radius'>0</span>m</button>&nbsp;
+      <button id='increaseRadius'> + </button>
     </div>
   </div>
   <div id="info">
@@ -84,7 +86,6 @@
 <script>
   var boat;
   var crosshair;
-  var crosshairRadius;
   var anchor;
   var anchorRadius;
   var mmsi;
@@ -187,6 +188,13 @@
 
   $.get('/signalk/v1/api/vessels/self', (data) => {
       mmsi = data.mmsi;
+
+      //our radius defaults.
+      if (data.environment.depth.belowTransducer.value)
+        maxRadius = Math.round(parseInt(data.environment.depth.belowTransducer.value)*5);
+      else
+        maxRadius = 50;
+      
       data = data.navigation;
       latitude = data.position.value.latitude;
       longitude = data.position.value.longitude;
@@ -210,29 +218,30 @@
       crosshair = L.marker(latlng, {
           icon: crosshairIcon
       });
-      crosshairRadius = L.marker(latlng, {
-          icon: crosshairIcon
-      });
+
+      anchorRadius = L.circle(map.getCenter(), maxRadius, {color:'green'});
+      uiSetRadius(maxRadius)
 
       if ((data.anchor) && (data.anchor.position) && (data.anchor.position.value)) {
         let anchorPosition = data.anchor.position.value;	
         let anchorCoord = L.latLng(anchorPosition.latitude, anchorPosition.longitude);
-        let radius = data.anchor.maxRadius.value;
+        let radius = parseInt(data.anchor.maxRadius.value);
         dropAnchor(anchorCoord, radius);
       } else {
         //show our potential anchor spot.
         crosshair = L.marker(latlng, {
             icon: crosshairIcon
         }).addTo(map)
-        crosshairRadius = L.circle(map.getCenter(), maxRadius, {color:'green'}).addTo(map);
 
 	      $('#anchorUp').show();
       }
+      
+      anchorRadius.addTo(map)
 
       map.on('move', function(ev) {
         if (!isAnchored) {
           crosshair.setLatLng(map.getCenter());
-          crosshairRadius.setLatLng(map.getCenter());
+          anchorRadius.setLatLng(map.getCenter());
         }
       });
       
@@ -284,65 +293,54 @@
 
   $('#dropAnchor').click( () => {
     $.post('/plugins/anchoralarm/dropAnchor', () => {
-      $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
-        let radius = Math.round(parseInt(depth)*5);
-        $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-          dropAnchor(map.getCenter(), radius);
+      let mc = map.getCenter()
+      let newPosition = {latitude: mc.lat, longitude: mc.lng};
+      $.post('/plugins/anchoralarm/setAnchorPosition', { position: newPosition}, () => {
+        $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius }, () => {
+            dropAnchor(mc, maxRadius);
         });
-      }).fail(() => {
-        let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
-        if (newRadius) {
-          $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-            dropAnchor(map.getCenter(), newRadius);
-          });
-        }
       });
     }).fail((response) => {
-	if (response.status = 401) {
-	  location.href="/admin/#/login";
-	}
+    	if (response.status = 401) {
+    	  location.href="/admin/#/login";
+    	}
     });
   });
 
   $('#setRadius').click( () => {
-    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      let newRadius = prompt('Enter Radius (m)', radius)
-      if (newRadius) {
-        $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-          anchorRadius.setRadius(newRadius);
-          $('#radius').html(newRadius);
-        });
-      }
-    });
+    let newRadius = parseInt(prompt('Enter Radius (m)', maxRadius))
+    if (newRadius <= 0)
+      return;
+
+    maxRadius = newRadius;
+    uiSetRadius(newRadius);
+
+    if (isAnchored)
+      $.post('/plugins/anchoralarm/setRadius', { radius: newRadius });
   });
 
   $('#increaseRadius').click( () => {
-    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius);
-      if (isNaN(radius)) {
-        return;
-      }
-      radius = radius + 5;
-      $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-        anchorRadius.setRadius(radius);
-        $('#radius').html(radius);
-      });
-    });
+    maxRadius = parseInt(maxRadius) + 5;
+    uiSetRadius(maxRadius);
+    if (isAnchored)
+      $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius });
   });
 
   $('#decreaseRadius').click( () => {
-    $.get('/signalk/v1/api/vessels/self/navigation/anchor/maxRadius/value', (radius) => {
-      radius = parseInt(radius);
-      if (isNaN(radius)) {
-        return;
-      }
-      radius = radius - 5;
-      $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-        anchorRadius.setRadius(radius);
-        $('#radius').html(radius);
-      });
-    });
+    maxRadius = parseInt(maxRadius);
+    if (maxRadius <= 5)
+       return;
+      
+    maxRadius = maxRadius - 5;
+    uiSetRadius(maxRadius)
+    if (isAnchored)
+      $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius });
   });
+  
+  function uiSetRadius(radius) {
+    $('#radius').html(maxRadius);
+    anchorRadius.setRadius(radius);
+  }
 
   function dropAnchor(position, radius) {
     $('#anchorDown').show();
@@ -350,33 +348,34 @@
 
     isAnchored = true;
     
-    maxRadius = radius;
+    maxRadius = parseInt(radius);
+    if (maxRadius <= 0)
+      maxRadius = 10;
 
     map.removeLayer(crosshair);
-    map.removeLayer(crosshairRadius);
 
-    $('#radius').html(maxRadius);
-    anchorRadius = L.circle(position, maxRadius).addTo(map);
+    uiSetRadius(maxRadius)
+    anchorRadius.setLatLng(position);
+    anchorRadius.setStyle({'color': 'blue'})
     anchor = L.marker(position, {
       icon: anchorIcon
     }).addTo(map);
   }
 
-  function raiseAnchor(position, radius) {
+  function raiseAnchor() {
     map.removeLayer(anchor);
-    map.removeLayer(anchorRadius);
+
+    anchorRadius.setLatLng(map.getCenter());
+    anchorRadius.setStyle({'color': 'green'})
 
     $('#anchorUp').show();
     $('#anchorDown').hide();
-    
 
     isAnchored = false;
 
     crosshair = L.marker(map.getCenter(), {
         icon: crosshairIcon
     }).addTo(map)
-
-    crosshairRadius = L.circle(map.getCenter(), maxRadius, {color:'green'}).addTo(map);
   }
 
   function calculateDistance(lat1, lon1, lat2, lon2) {
