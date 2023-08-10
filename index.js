@@ -429,18 +429,28 @@ module.exports = function(app) {
     })
 
     router.post("/setAnchorPosition", (req, res) => {
+      var old_pos = app.getSelfPath('navigation.anchor.position.value')
+      var depth
+
+      if ( old_pos && old_pos.altitude ) {
+        depth = old_pos.altitude
+      }
+      
       var position = req.body['position']
 
       var maxRadius = app.getSelfPath('navigation.anchor.maxRadius.value')
 
       var delta = getAnchorDelta(app, null, position, null,
-                                 maxRadius, false);
+                                 maxRadius, false, depth);
 
       app.debug("setAnchorPosition: " + JSON.stringify(delta))
       app.handleMessage(plugin.id, delta)
 
-      configuration["position"] = { "latitude": position.latitude,
-                                    "longitude": position.longitude }
+      configuration["position"] = {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        altitude: depth
+      }
 
       try {
         savePluginOptions()
