@@ -706,7 +706,16 @@ module.exports = function(app) {
 
       let bowPosition = computeBowLocation(vesselPosition, app.getSelfPath('navigation.headingTrue.value'))
       let bearing  = degsToRad(geolib.getRhumbLineBearing(bowPosition, position))
+      let distanceFromBow = calc_distance(bowPosition.latitude,
+                                          bowPosition.longitude,
+                                          position.latitude,
+                                          position.longitude)
 
+      values.push(        {
+        path: 'navigation.anchor.distanceFromBow',
+        value: distanceFromBow
+      })
+      
       values.push(        {
         path: 'navigation.anchor.bearingTrue',
         value: bearing
@@ -789,6 +798,10 @@ module.exports = function(app) {
           path: 'navigation.anchor.maxRadius',
           value: null
         },
+        {
+          path: 'navigation.anchor.distanceFromBow',
+          value: null
+        }
         /*
           {
           path: 'navigation.anchor.state',
