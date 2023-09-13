@@ -417,6 +417,24 @@ module.exports = function(app) {
       }
     })
 
+		router.post("/bowHeight", (req, res) => {
+			configuration =  {
+				bowHeight: req.body.bowHeight
+			}
+
+      try {
+        savePluginOptions()
+        res.send('ok')
+      } catch ( err ) {
+        app.error(err)
+        res.status(500)
+        res.send("can't save config")
+      }
+		});
+
+		router.get("/configuration", (req, res) => {
+			res.send(configuration);
+		});
     router.post("/raiseAnchor", (req, res) => {
       try {
         raiseAnchor()

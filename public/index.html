@@ -171,6 +171,7 @@
   }, 1500);
 
   $.get('/signalk/v1/api/vessels/self', (data) => {
+		try {
       mmsi = data.mmsi;
       data = data.navigation;
       latitude = data.position.value.latitude;
@@ -181,6 +182,9 @@
       } else {
         heading = 0;
       }
+			if (!latitude | !longitude) {
+				alert("GPS does not have a fix on your position!");
+			}
       let latlng = L.latLng(latitude, longitude);
       zoom = 17;
       if (urlParams.has('zoom')) {
@@ -199,6 +203,12 @@
       } else {
 	$('#anchorUp').show();
       }
+		} catch (error) {
+			console.error("ERROR: ", error);
+				if (!boat) {
+					alert("Error retrieving vessel configuration. Have you configured your vessel in the SignalK server settings?");
+				}
+		}
   });
 
   satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -237,28 +247,37 @@
     }
   });
 
-  $('#dropAnchor').click( () => {
-    $.post('/plugins/anchoralarm/dropAnchor', () => {
-      $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
-        let radius = Math.round(parseInt(depth)*5);
-        $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-          $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-	    dropAnchor(data.position.value, radius);
-	  });
-        });
-      }).fail(() => {
-        let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
-        if (newRadius) {
-          $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-	    dropAnchor(data.position, newRadius);
-          });
-        }
-      });
-    }).fail((response) => {
-	if (response.status = 401) {
-	  location.href="/admin/#/login";
-	}
-    });
+  $('#dropAnchor').click(async () => {
+		let res = await $.get("/plugins/anchoralarm/configuration");
+		console.log(res);
+		if(!res) {
+			let bowHeight = prompt('Config is missing values. Enter bowHeight', 0);
+			await $.post('/plugins/anchoralarm/bowHeight', {
+				bowHeight
+			});
+		} else {
+			$.post('/plugins/anchoralarm/dropAnchor', () => {
+				$.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+					let radius = Math.round(parseInt(depth)*5);
+					$.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+						$.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+							dropAnchor(data.position.value, radius);
+						});
+					});
+				}).fail(() => {
+					let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
+					if (newRadius) {
+						$.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
+							dropAnchor(data.position, newRadius);
+						});
+					}
+				});
+			}).fail((response) => {
+				if (response.status === 401) {
+					location.href="/admin/#/login";
+				}
+			});
+		}
   });
 
   $('#setRadius').click( () => {
