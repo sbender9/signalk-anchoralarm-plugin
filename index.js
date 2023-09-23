@@ -328,7 +328,7 @@ module.exports = function(app) {
       if ( typeof vesselPosition == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
+        res.status(403)
         res.send("no position available")
       }
       else
@@ -376,7 +376,7 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
+        res.status(403)
         res.send("no position available")
       }
       else
@@ -481,7 +481,7 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        return {code: 401, message: "no position available"}
+        return {code: 403, message: "no position available"}
       }
 
       var heading = app.getSelfPath('navigation.headingTrue.value')
@@ -491,7 +491,7 @@ module.exports = function(app) {
         heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          return {code: 401, message: "no heading available"}
+          return {code: 403, message: "no heading available"}
         }
       }
       
