@@ -328,8 +328,12 @@ module.exports = function(app) {
       if ( typeof vesselPosition == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
-        res.send("no position available")
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "no position available"
+        })
       }
       else
       {
@@ -360,11 +364,18 @@ module.exports = function(app) {
 
         try {
           savePluginOptions()
-          res.send('ok')
+          res.json({
+            statusCode: 200,
+            state: 'COMPLETED'
+          })
         } catch ( err ) {
           app.error(err)
           res.status(500)
-          res.send("can't save config")
+          res.json({
+            statusCode: 500,
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
     })
@@ -376,8 +387,12 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
-        res.send("no position available")
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "no position available"
+        })
       }
       else
       {
@@ -408,11 +423,18 @@ module.exports = function(app) {
 
         try {
           savePluginOptions()
-          res.send('ok')
+          res.json({
+            statusCode: 200,
+            state: 'COMPLETED'
+          })
         } catch ( err ) {
           app.error(err)
           res.status(500)
-          res.send("can't save config")
+          res.json({
+            statusCode: 500,
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
     })
@@ -420,11 +442,18 @@ module.exports = function(app) {
     router.post("/raiseAnchor", (req, res) => {
       try {
         raiseAnchor()
-        res.send('ok')
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
       } catch ( err ) {
         app.error(err)
         res.status(500)
-        res.send("can't save config")
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     })
 
@@ -454,11 +483,18 @@ module.exports = function(app) {
 
       try {
         savePluginOptions()
-        res.send('ok')
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
       } catch ( err ) {
         app.error(err)
         res.status(500)
-        res.send("can't save config")
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     });
 
@@ -467,8 +503,8 @@ module.exports = function(app) {
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
       var result = setManualAnchor(depth, rode)
-      res.status(result.code)
-      res.send(result.message)
+      res.status(result.statusCode)
+      res.json(result.message)
     })
 
     
@@ -481,7 +517,7 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        return {code: 401, message: "no position available"}
+        return {statusCode: 403, state: "FAILED", message: "no position available"}
       }
 
       var heading = app.getSelfPath('navigation.headingTrue.value')
@@ -491,7 +527,7 @@ module.exports = function(app) {
         heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          return {code: 401, message: "no heading available"}
+          return {statusCode: 403, state: "FAILED", message: "no heading available"}
         }
       }
       
@@ -562,10 +598,10 @@ module.exports = function(app) {
     
       try {
         savePluginOptions()
-        return {code: 200, message: "ok"}
+        return {statusCode: 200, state: "COMPLETED", message: "ok"}
       } catch ( err ) {
         app.error(err)
-        return {code: 501, message: err.message}
+        return {statusCode: 501, state: "FAILED", message: err.message}
       }
     }
     
