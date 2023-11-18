@@ -338,8 +338,12 @@ module.exports = function(app) {
       if ( typeof vesselPosition == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
-        res.send("no position available")
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "no position available"
+        })
       }
       else
       {
@@ -370,11 +374,18 @@ module.exports = function(app) {
 
         try {
           savePluginOptions()
-          res.send('ok')
+          res.json({
+            statusCode: 200,
+            state: 'COMPLETED'
+          })
         } catch ( err ) {
           app.error(err)
           res.status(500)
-          res.send("can't save config")
+          res.json({
+            statusCode: 500,
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
     })
@@ -386,8 +397,12 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        res.status(401)
-        res.send("no position available")
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "no position available"
+        })
       }
       else
       {
@@ -418,11 +433,18 @@ module.exports = function(app) {
 
         try {
           savePluginOptions()
-          res.send('ok')
+          res.json({
+            statusCode: 200,
+            state: 'COMPLETED'
+          })
         } catch ( err ) {
           app.error(err)
           res.status(500)
-          res.send("can't save config")
+          res.json({
+            statusCode: 500,
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
     })
@@ -440,35 +462,59 @@ module.exports = function(app) {
     router.post("/raiseAnchor", (req, res) => {
       try {
         raiseAnchor()
-        res.send('ok')
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
       } catch ( err ) {
         app.error(err)
         res.status(500)
-        res.send("can't save config")
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     })
 
     router.post("/setAnchorPosition", (req, res) => {
+      var old_pos = app.getSelfPath('navigation.anchor.position.value')
+      var depth
+
+      if ( old_pos && old_pos.altitude ) {
+        depth = old_pos.altitude
+      }
+      
       var position = req.body['position']
 
       var maxRadius = app.getSelfPath('navigation.anchor.maxRadius.value')
 
       var delta = getAnchorDelta(app, null, position, null,
-                                 maxRadius, false);
+                                 maxRadius, false, depth);
 
       app.debug("setAnchorPosition: " + JSON.stringify(delta))
       app.handleMessage(plugin.id, delta)
 
-      configuration["position"] = { "latitude": position.latitude,
-                                    "longitude": position.longitude }
+      configuration["position"] = {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        altitude: depth
+      }
 
       try {
         savePluginOptions()
-        res.send('ok')
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
       } catch ( err ) {
         app.error(err)
         res.status(500)
-        res.send("can't save config")
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     });
 
@@ -477,8 +523,8 @@ module.exports = function(app) {
       var depth = req.body['anchorDepth']
       var rode = req.body['rodeLength']
       var result = setManualAnchor(depth, rode)
-      res.status(result.code)
-      res.send(result.message)
+      res.status(result.statusCode)
+      res.json(result.message)
     })
 
     
@@ -491,7 +537,7 @@ module.exports = function(app) {
       if ( typeof position == 'undefined' )
       {
         app.debug("no position available")
-        return {code: 401, message: "no position available"}
+        return {statusCode: 403, state: "FAILED", message: "no position available"}
       }
 
       var heading = app.getSelfPath('navigation.headingTrue.value')
@@ -501,7 +547,7 @@ module.exports = function(app) {
         heading = app.getSelfPath('navigation.headingMagnetic.value')
         if ( typeof heading == 'undefined' )
         {
-          return {code: 401, message: "no heading available"}
+          return {statusCode: 403, state: "FAILED", message: "no heading available"}
         }
       }
       
@@ -572,10 +618,10 @@ module.exports = function(app) {
     
       try {
         savePluginOptions()
-        return {code: 200, message: "ok"}
+        return {statusCode: 200, state: "COMPLETED", message: "ok"}
       } catch ( err ) {
         app.error(err)
-        return {code: 501, message: err.message}
+        return {statusCode: 501, state: "FAILED", message: err.message}
       }
     }
     
@@ -716,7 +762,16 @@ module.exports = function(app) {
 
       let bowPosition = computeBowLocation(vesselPosition, app.getSelfPath('navigation.headingTrue.value'))
       let bearing  = degsToRad(geolib.getRhumbLineBearing(bowPosition, position))
+      let distanceFromBow = calc_distance(bowPosition.latitude,
+                                          bowPosition.longitude,
+                                          position.latitude,
+                                          position.longitude)
 
+      values.push(        {
+        path: 'navigation.anchor.distanceFromBow',
+        value: distanceFromBow
+      })
+      
       values.push(        {
         path: 'navigation.anchor.bearingTrue',
         value: bearing
@@ -799,6 +854,10 @@ module.exports = function(app) {
           path: 'navigation.anchor.maxRadius',
           value: null
         },
+        {
+          path: 'navigation.anchor.distanceFromBow',
+          value: null
+        }
         /*
           {
           path: 'navigation.anchor.state',

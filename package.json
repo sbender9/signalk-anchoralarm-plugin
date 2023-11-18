@@ -1,10 +1,12 @@
 {
   "name": "signalk-anchoralarm-plugin",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Plugin that checks the vessel position to see if there's anchor drift",
   "main": "index.js",
   "scripts": {
-    "test": "$NODE $npm_package_main"
+    "test": "$NODE $npm_package_main",
+    "create-release": "github-create-release --owner sbender9 --repository signalk-anchoralarm-plugin",
+    "release": "git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release"
   },
   "keywords": [
     "signalk-node-server-plugin",
@@ -23,6 +25,9 @@
     "baconjs": "^0.7.88",
     "geolib": "^3.3.3",
     "lodash": "^4.17.4"
+  },
+  "devDependencies": {
+    "@signalk/github-create-release": "^1.0.1"
   },
   "repository": {
     "type": "git",
