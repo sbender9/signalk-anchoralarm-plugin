@@ -5,81 +5,158 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SignalK Anchor Alarm</title>
-    <script src="jquery-3.5.1.min.js"></script>
-    <link rel="stylesheet" href="leaflet.css"/>
-    <script src="leaflet.js"></script>
-    <script src="leaflet.rotatedMarker.js"></script>
+    <script src="js/jquery-3.5.1.min.js"></script>
+    <link rel="stylesheet" href="leaflet/leaflet.css"/>
+    <script src="leaflet/leaflet.js"></script>
+    <script src="leaflet/leaflet.rotatedMarker.js"></script>
     <style>
-       body {
-          padding: 0;
-          margin: 0;
-       }
-       html, body, #map {
-          height: 100%;
-          width: 100%;
-          z-index: 1;
-          position: relative;
-       }
+      body {
+        padding: 0;
+        margin: 0;
+      }
 
-       #map_container {
-          height: 100%;
-          width: 100%;
-          z-index: 1;
-          position: relative;
-       }
+      html, body, #map {
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+        position: relative;
+      }
 
-       #map_toggle {
-          position: absolute;
-          top: 20px;
-          left: 50%;
-	  width: 300px;
-	  height: 50px;
-	  margin-left: -150px;
-          z-index: 99;
-	  opacity: 1;
-	  border-radius: 5px;
-	  text-align: center;
-	  line-height: 40px;
-       }
-       #info {
-          position: absolute;
-          bottom: 120px;
-          left: 50%;
-	  width: 200px;
-	  height: 50px;
-	  margin-left: -100px;
-          z-index: 99;
-	  padding-top: 10px;
-	  opacity: 1;
-	  border-radius: 5px;
-	  text-align: center;
-	  font-size: 26pt;
-	  color: white;
-       }
-        button {
-	  font-size: 23px;
-       }
-       #anchorDown, #anchorUp {
-	  display: none;
-       }
+      #map_container {
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+        position: relative;
+      }
+
+      #controls {
+        position: absolute;
+        bottom: 50px;
+        left: 50%;
+        width: 300px;
+        margin-left: -150px;
+        z-index: 99;
+        text-align: center;
+        line-height: 40px;
+      }
+      
+      #map_toggle {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        width: 300px;
+        height: 50px;
+        margin-left: -150px;
+        z-index: 99;
+        opacity: 1;
+        border-radius: 5px;
+        text-align: center;
+        line-height: 40px;
+      }
+
+      #info {
+        position: absolute;
+        z-index: 110;
+        top: 60px;
+        left: 50%;
+        padding: 5px;
+        width: 300px;
+        margin-left: -150px;
+        height: 58px;
+        overflow: none;
+        background-color: #fff;
+        border-radius: 10px;
+        border: 1px solid #888;
+        overflow-x: hidden;
+        font-family: Verdana, Tahoma, sans-serif;
+        font-size: 12pt;
+      }
+
+      #info .heading {
+        font-weight: bold;
+        text-align: center;
+        color: navy;
+        font-size: 14pt;
+      }
+
+      #info .value {
+        text-align: center;
+        font-size: 13pt;
+        margin-top: 5px;
+      }
+
+      .popupHeading {
+        font-weight: bold;
+        text-align: right;
+      }
+
+      button {
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px solid #888;
+        background-color: white;
+      }
+
+      #anchorDown, #anchorUp {
+        display: none;
+      }
     </style>
 </head>
 <body>
 <div id="map_container">
   <div id="map"></div>
   <div id="map_toggle">
+  </div>
+  <div id="controls">
     <div id='anchorDown'>
-      <button id='raiseAnchor'>Raise Anchor</button><br/>
-      <button id='decreaseRadius'> - </button>&nbsp;
-      <button id='setRadius'><span id='radiusValue'>0</span>/<span id='radius'>0</span>m</button>&nbsp;
-      <button id='increaseRadius'> + </button>
+      <button id='decreaseRadius'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M432 256c0 17.7-14.3 32-32 32L48 288c-17.7 0-32-14.3-32-32s14.3-32 32-32l352 0c17.7 0 32 14.3 32 32z"/></svg>
+      </button>&nbsp;
+      <button id='setRadius'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M406.6 374.6l96-96c12.5-12.5 12.5-32.8 0-45.3l-96-96c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L402.7 224l-293.5 0 41.4-41.4c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-96 96c-12.5 12.5-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 288l293.5 0-41.4 41.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0z"/></svg>
+      </button>&nbsp;
+      <button id='raiseAnchor'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 640 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M320 96a32 32 0 1 1 -64 0 32 32 0 1 1 64 0zm21.1 80C367 158.8 384 129.4 384 96c0-53-43-96-96-96s-96 43-96 96c0 33.4 17 62.8 42.9 80L224 176c-17.7 0-32 14.3-32 32s14.3 32 32 32l32 0 0 208-48 0c-53 0-96-43-96-96l0-6.1 7 7c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9L97 263c-9.4-9.4-24.6-9.4-33.9 0L7 319c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l7-7 0 6.1c0 88.4 71.6 160 160 160l80 0 80 0c8.2 0 16.3-.6 24.2-1.8c-22.2-16.2-40.4-37.5-53-62.2L320 448l0-80 0-128 32 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-10.9 0zM496 512a144 144 0 1 0 0-288 144 144 0 1 0 0 288zm59.3-180.7L518.6 368l36.7 36.7c6.2 6.2 6.2 16.4 0 22.6s-16.4 6.2-22.6 0L496 390.6l-36.7 36.7c-6.2 6.2-16.4 6.2-22.6 0s-6.2-16.4 0-22.6L473.4 368l-36.7-36.7c-6.2-6.2-6.2-16.4 0-22.6s16.4-6.2 22.6 0L496 345.4l36.7-36.7c6.2-6.2 16.4-6.2 22.6 0s6.2 16.4 0 22.6z"/></svg>
+      </button>&nbsp;
+      <button id='increaseRadius'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"/></svg>
+      </button>
     </div>
     <div id='anchorUp'>
-      <button id='dropAnchor'>Drop Anchor</button><br/>
+      <button id='dropAnchor'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 576 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.--><path d="M320 96a32 32 0 1 1 -64 0 32 32 0 1 1 64 0zm21.1 80C367 158.8 384 129.4 384 96c0-53-43-96-96-96s-96 43-96 96c0 33.4 17 62.8 42.9 80L224 176c-17.7 0-32 14.3-32 32s14.3 32 32 32l32 0 0 208-48 0c-53 0-96-43-96-96l0-6.1 7 7c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9L97 263c-9.4-9.4-24.6-9.4-33.9 0L7 319c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l7-7 0 6.1c0 88.4 71.6 160 160 160l80 0 80 0c88.4 0 160-71.6 160-160l0-6.1 7 7c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-56-56c-9.4-9.4-24.6-9.4-33.9 0l-56 56c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l7-7 0 6.1c0 53-43 96-96 96l-48 0 0-208 32 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-10.9 0z"/></svg>
+      </button>
     </div>
   </div>
   <div id="info">
-    <button id='setRadius'><span id='depthValue'>0</span>m</button>
+    <table style="width: 100%">
+      <tr>
+        <td style="width: 35%;">
+          <div class="heading">
+            Distance
+          </div>
+          <div class="value">
+            <span id='radiusValue'>-</span> m
+          </div>
+        </td>
+        <td style="width: 35%;">
+          <div class="heading">
+            Limit
+          </div>
+          <div class="value">
+            <span id='radius'>-</span> m
+          </div>
+        </td>
+        <td style="width: 30%;">
+          <div class="heading">
+            Depth
+          </div>
+          <div class="value">
+            <span id='depthValue'>-</span> m
+          </div>
+        </td>
+      </tr>
+    </table>
  </div>
 <script>
   var boat;
@@ -91,21 +168,26 @@
   var longitude;
   var target = {};
 
-  var map = L.map('map').setView([39.8283, -98.5795], 5);
+  var map = L.map('map', {
+    zoomControl: false
+  }).setView([39.8283, -98.5795], 5);
+  L.control.zoom({
+    position: 'bottomright'
+  }).addTo(map);
   var boatIcon = L.icon({
-    iconUrl: 'boat.png',
+    iconUrl: 'images/boat.png',
     iconSize:     [24, 48], // size of the icon
     iconAnchor:   [24, 24], // point of the icon which will correspond to marker's location
   });
   var anchorIcon = L.icon({
-    iconUrl: 'anchor.png',
+    iconUrl: 'images/anchor.png',
     iconSize:     [24, 24], // size of the icon
     iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
   });
   var targetIcon = L.icon({
-    iconUrl: 'target.png',
-    iconSize:     [12, 12], // size of the icon
-    iconAnchor:   [6, 6], // point of the icon which will correspond to marker's location
+    iconUrl: 'images/ais_boat.png',
+    iconSize:     [24, 24], // size of the icon
+    iconAnchor:   [12, 12], // point of the icon which will correspond to marker's location
   });
   var urlParams = new URLSearchParams(window.location.search);
 
@@ -129,36 +211,66 @@
       $('#radiusValue').html(radius);
     });
     $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+      depth = Math.round(depth*10)/10;
       $('#depthValue').html(depth);
     }).fail(() => {
       $('#depthValue').html("~");
     });
 
     $.get('/signalk/v1/api/vessels', (vessels) => {
+      function toTitleCase(str) {
+        if (!str) {
+          return str;
+        }
+        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      }
       let detectedTargets = [];
       for (let key in vessels) {
-	let vessel=vessels[key];
-	if (vessel.mmsi == mmsi) {
-	  continue;
-	}
-	if (!("navigation" in vessel) || !("position" in vessel.navigation)) {
-	  continue;
-	}
-	let position = vessel.navigation.position.value;
-	let distance = calculateDistance(position.latitude, position.longitude, latitude, longitude);
-	if (distance <= maxRadius * 5) {
-	  detectedTargets.push(vessel.mmsi);
-	  distance = Math.round(distance*10)/10;
-	  if (vessel.mmsi in target) {
-	    target[vessel.mmsi].setLatLng([position.latitude, position.longitude]);
-   	    target[vessel.mmsi]._popup.setContent(`${vessel.name} at ${distance} meters`);
-	  } else {
+        let vessel=vessels[key];
+        if (vessel.mmsi == mmsi) {
+          continue;
+        }
+        if (!("navigation" in vessel) || !("position" in vessel.navigation)) {
+          continue;
+        }
+        let position = vessel.navigation.position.value;
+        let heading= vessel.navigation.courseOverGroundTrue?.value;
+        if (heading) {
+          heading = heading *  57.295779513; // Convert to degrees
+        } else {
+          heading = vessel.navigation.headingTrue?.value;
+          if (heading) {
+            heading = heading *  57.295779513; // Convert to degrees
+          } else {
+            heading = 0;
+          }
+        }
+        let vesselName = toTitleCase(vessel.name);
+        let distance = calculateDistance(position.latitude, position.longitude, latitude, longitude);
+        if (distance <= 2000) {
+          detectedTargets.push(vessel.mmsi);
+          distance = Math.round(distance);
+          let popup = `<center><h3>${vesselName}</h3></center>`;
+          popup += `<table>`;
+          popup += `<tr><td class='popupHeading'>Distance:</td><td>${distance} m</td></tr>`;
+          popup += `<tr><td class='popupHeading'>MMSI:</td><td>${vessel.mmsi}</td></tr>`;
+          popup += `<tr><td class='popupHeading'>Latitude:</td><td>${position.latitude}</td></tr>`;
+          popup += `<tr><td class='popupHeading'>Longitude:</td><td>${position.longitude}</td></tr>`;
+          popup += `</table>`;
+          
+          if (vessel.mmsi in target) {
+            target[vessel.mmsi].setLatLng([position.latitude, position.longitude]);
+            target[vessel.mmsi]._popup.setContent(popup);
+          } else {
             target[vessel.mmsi] = L.marker([position.latitude, position.longitude], {
-              icon: targetIcon
-	    });
-	    target[vessel.mmsi].addTo(map).bindPopup(`${vessel.name} at ${distance} meters`);
-	  }
-	}
+              icon: targetIcon,
+              rotationOrigin: 'center center'
+            });
+            target[vessel.mmsi].addTo(map).bindPopup(popup);
+          }
+  
+          target[vessel.mmsi].setRotationAngle(heading);
+        }
       }
       for (let mmsi in target) {
  	if (!detectedTargets.includes(mmsi)) {
@@ -195,7 +307,7 @@
       if ((data.anchor) && (data.anchor.position) && (data.anchor.position.value)) {
         let anchorPosition = data.anchor.position.value;	
         let radius = data.anchor.maxRadius.value;
-	dropAnchor(anchorPosition, radius);
+	      dropAnchor(anchorPosition, radius);
       } else {
 	$('#anchorUp').show();
       }
@@ -243,21 +355,21 @@
         let radius = Math.round(parseInt(depth)*5);
         $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
           $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-	    dropAnchor(data.position.value, radius);
-	  });
+	          dropAnchor(data.position.value, radius);
+	        });
         });
       }).fail(() => {
-        let newRadius = prompt('Couldn\'t determine depth, Enter Radius (m)', 50);
+        let newRadius = prompt('Couldn\'t determine depth, Enter Max Radius (m)', 50);
         if (newRadius) {
           $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-	    dropAnchor(data.position, newRadius);
+	          dropAnchor(data.position, newRadius);
           });
         }
       });
     }).fail((response) => {
-	if (response.status = 401) {
-	  location.href="/admin/#/login";
-	}
+	    if (response.status = 401) {
+	      location.href="/admin/#/login";
+	    }
     });
   });
 
@@ -312,11 +424,28 @@
     let anchorLatLng = L.latLng(anchorLatitude, anchorLongitude);
     anchorRadius = L.circle(anchorLatLng, maxRadius).addTo(map);
     anchor = L.marker(anchorLatLng, {
-      icon: anchorIcon
+      icon: anchorIcon,
+      draggable: true
     }).addTo(map);
+    anchor.on('dragend', function(event) {
+      var marker = event.target;
+      var position = marker.getLatLng();
+      $.post('/plugins/anchoralarm/setAnchorPosition', { 
+        position: {
+          latitude: position.lat,
+          longitude: position.lng
+        }
+      }, () => {
+        anchor.setLatLng(position);
+        anchorRadius.setLatLng(position);
+      }).fail((response) => {
+        alert('Failed to set anchor position, page will refresh');
+        location.reload();
+      });
+});
   }
 
-  function raiseAnchor(position, radius) {
+  function raiseAnchor() {
     map.removeLayer(anchor);
     map.removeLayer(anchorRadius);
     $('#anchorUp').show();
