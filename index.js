@@ -34,6 +34,7 @@ module.exports = function(app) {
   var lastTrueHeading
   var positionAlarmSent
   var saveOptionsTimer
+  var track = []
 
   plugin.start = function(props) {
     configuration = props
@@ -203,6 +204,7 @@ module.exports = function(app) {
   {
     onStop.forEach(f => f())
     onStop = []
+    track = []
   }
 
   function startWatchingPosistion()
@@ -210,6 +212,7 @@ module.exports = function(app) {
     if ( onStop.length > 0 )
       return
 
+    track = []
     app.subscriptionmanager.subscribe(
       {
         context: 'vessels.self',
@@ -238,6 +241,17 @@ module.exports = function(app) {
               update.values.forEach(vp => {
                 if ( vp.path === 'navigation.position' ) {
                   position = vp.value
+                  // Track the positon. Only record the position every minute.
+                  if (( track.length == 0 ) || (track[track.length-1].time < Date.now() - 60 * 1000 )) {
+                    track.push({
+                      position: position,
+                      time: Date.now()
+                    })
+                    if ( track.length > 24*60 ) {
+                      // Keep only the last 24 hours of track to avoid memory issues
+                      track.shift()
+                    }
+                  }
                 } else if ( vp.path === 'navigation.headingTrue' ) {
                   trueHeading = vp.value
                 }
@@ -507,7 +521,9 @@ module.exports = function(app) {
       res.json(result.message)
     })
 
-    
+    router.get("/getTrack", (req, res) => {
+      res.json(track)
+    });
   }
 
   function setManualAnchor(depth, rode) {

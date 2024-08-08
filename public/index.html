@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SignalK Anchor Alarm</title>
+    <title>Anchor Alarm</title>
     <script src="js/jquery-3.5.1.min.js"></script>
     <link rel="stylesheet" href="leaflet/leaflet.css"/>
     <script src="leaflet/leaflet.js"></script>
@@ -167,6 +167,8 @@
   var latitude;
   var longitude;
   var target = {};
+  var track;
+  var trackUpdater;
 
   var map = L.map('map', {
     zoomControl: false
@@ -204,6 +206,9 @@
       let latlng = L.latLng(latitude, longitude);
       boat.setLatLng(latlng); 
       boat.setRotationAngle(heading);
+      if (track) {
+        track.addLatLng(latlng);
+      }
     });
 
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
@@ -309,24 +314,24 @@
         let radius = data.anchor.maxRadius.value;
 	      dropAnchor(anchorPosition, radius);
       } else {
-	$('#anchorUp').show();
+	      $('#anchorUp').show();
       }
   });
 
   satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
-      maxZoom: 19
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+    maxZoom: 19
   });
   satelliteLayer.addTo(map);
 
   osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data from OpenStreetMap (OSM)',
-      maxZoom: 19 
+    attribution: 'Map data from OpenStreetMap (OSM)',
+    maxZoom: 19
   });
 
   openSeaMapLayer = L.tileLayer('http://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-      attribution: 'Map data from OpenSeaMap',
-      maxZoom: 19
+    attribution: 'Map data from OpenSeaMap',
+    maxZoom: 19
   });
 
   var baseMaps = {
@@ -413,6 +418,21 @@
     });
   });
 
+  function updateTrack() {
+    $.getJSON('/plugins/anchoralarm/getTrack', (data) => {
+      const latLngs = data.map((item) => L.latLng(item.position.latitude, item.position.longitude));
+      if (track) {
+        track.setLatLngs(latLngs);
+      } else {
+        track = L.polyline(latLngs, {
+          color: 'yellow',
+          'opacity': 0.7,
+          'weight': 1
+        }).addTo(map);
+      }
+    });
+  }
+
   function dropAnchor(position, radius) {
     $('#anchorDown').show();
     $('#anchorUp').hide();
@@ -442,7 +462,9 @@
         alert('Failed to set anchor position, page will refresh');
         location.reload();
       });
-});
+    });
+    updateTrack();
+    trackUpdater = setInterval(updateTrack, 30000);
   }
 
   function raiseAnchor() {
@@ -450,6 +472,14 @@
     map.removeLayer(anchorRadius);
     $('#anchorUp').show();
     $('#anchorDown').hide();
+    if (track) {
+      map.removeLayer(track);
+      track = null;
+    }
+    if (trackUpdater) {
+      clearInterval(trackUpdater);
+      trackUpdater = null;
+    }
   }
 
   function calculateDistance(lat1, lon1, lat2, lon2) {
