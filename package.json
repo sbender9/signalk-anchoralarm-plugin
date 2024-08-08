@@ -13,7 +13,7 @@
     "signalk-webapp"
   ],
   "signalk": {
-    "appIcon": "anchoralarm.png",
+    "appIcon": "images/anchoralarm.png",
     "displayName": "Anchor Alarm"
   },
   "author": {
