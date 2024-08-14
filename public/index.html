@@ -371,7 +371,9 @@
         let newRadius = prompt('Couldn\'t determine depth, Enter Max Radius (m)', 50);
         if (newRadius) {
           $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-	          dropAnchor(data.position, newRadius);
+            $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+	            dropAnchor(data.position.value, newRadius);
+	          });
           });
         }
       });
