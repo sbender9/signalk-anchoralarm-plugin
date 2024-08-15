@@ -426,6 +426,10 @@ module.exports = function(app) {
           }
           app.debug("calc_distance: " + radius)
         }
+        else
+        {
+          radius = Number(radius)
+        }
 
         app.debug("set anchor radius: " + radius)
 
