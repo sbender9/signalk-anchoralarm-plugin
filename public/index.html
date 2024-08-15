@@ -170,12 +170,18 @@
   var track;
   var trackUpdater;
 
+  // Check if we have an authenticated session first, if not, we will redirect
+  // getTrack will return 401 if the session is not authenticated
+  $.getJSON('/plugins/anchoralarm/getTrack', (data) => {
+  }).fail((response) => {
+    if (response.status = 401) {
+      location.href="/admin/#/login";
+    }
+  });
+
   var map = L.map('map', {
     zoomControl: false
   }).setView([39.8283, -98.5795], 5);
-  L.control.zoom({
-    position: 'bottomright'
-  }).addTo(map);
 
   var anchorIcon = L.icon({
     iconUrl: 'images/anchor.png',
@@ -209,7 +215,7 @@
       }
     });
 
-    $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
+    $.get('/signalk/v1/api/vessels/self/navigation/anchor/distanceFromBow/value', (radius) => {
       radius = Math.round(radius*10)/10;
       $('#radiusValue').html(radius);
     });
@@ -347,7 +353,24 @@
     "OpenSeaMaps": openSeaMapLayer,
   };	
 
-  var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
+  var layerControl = L.control.layers(baseMaps, overlayMaps, {
+    position: 'bottomright'
+  }).addTo(map);
+  // On smaller screens for phones, layer control will be displayed in the center
+  // This also supports a future app version of the plugin
+  if (/iOS|iPhone|iPod|Android/.test(navigator.userAgent)) {
+    var style = document.createElement('style');
+    style.innerHTML = `
+      .leaflet-control-layers-expanded {
+        position: fixed !important;
+        left: 50% !important;
+        top: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 1000; /* Ensure it is above other elements */
+      }
+    `;
+    document.head.appendChild(style);    
+  }
 
   $('#raiseAnchor').click( () => {
     let agree=confirm('Do you really want to disable your anchor alarm?');
@@ -360,25 +383,25 @@
 
   $('#dropAnchor').click( () => {
     $.post('/plugins/anchoralarm/dropAnchor', () => {
-      $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
-        let radius = Math.round(parseInt(depth)*5);
-        $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
-          $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
-	          dropAnchor(data.position.value, radius);
-	        });
-        });
-      }).fail(() => {
-        let newRadius = prompt('Couldn\'t determine depth, Enter Max Radius (m)', 50);
-        if (newRadius) {
-          $.post('/plugins/anchoralarm/setRadius', { radius: newRadius }, () => {
-	          dropAnchor(data.position, newRadius);
+      $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
+        let position = data.position.value;
+        $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+          let radius = Math.round(parseInt(depth)*5);
+          $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+            dropAnchor(position, radius);
           });
-        }
+        }).fail(() => {
+          let radius = prompt('Couldn\'t determine depth, Enter Max Radius (m)', 50);
+          if (radius) {
+            $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
+              dropAnchor(position, radius);
+            });
+          }
+        });
       });
     }).fail((response) => {
-	    if (response.status = 401) {
-	      location.href="/admin/#/login";
-	    }
+      alert('Failed to set the anchor, page will refresh');
+      location.reload();
     });
   });
 
