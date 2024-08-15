@@ -410,7 +410,7 @@ module.exports = function(app) {
       }
       else
       {
-        var radius = Number(req.body['radius'])
+        var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
         {
           app.debug("config: %o", configuration)
@@ -425,6 +425,10 @@ module.exports = function(app) {
             radius += fudge
           }
           app.debug("calc_distance: " + radius)
+        }
+        else
+        {
+          radius = Number(radius)
         }
 
         app.debug("set anchor radius: " + radius)
