@@ -410,7 +410,7 @@ module.exports = function(app) {
       }
       else
       {
-        var radius = req.body['radius']
+        var radius = Number(req.body['radius'])
         if ( typeof radius == 'undefined' )
         {
           app.debug("config: %o", configuration)
