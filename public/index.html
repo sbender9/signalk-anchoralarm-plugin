@@ -477,17 +477,25 @@
     anchor.on('dragend', function(event) {
       var marker = event.target;
       var position = marker.getLatLng();
-      $.post('/plugins/anchoralarm/setAnchorPosition', { 
+      var data = {
         position: {
           latitude: position.lat,
           longitude: position.lng
         }
-      }, () => {
-        anchor.setLatLng(position);
-        anchorRadius.setLatLng(position);
-      }).fail((response) => {
-        alert('Failed to set anchor position, page will refresh');
-        location.reload();
+      }
+      $.ajax({
+        url: '/plugins/anchoralarm/setAnchorPosition',
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: () => {
+          anchor.setLatLng(position);
+          anchorRadius.setLatLng(position);
+        },
+        error: (response) => {
+          alert('Failed to set anchor position, page will refresh');
+          location.reload();
+        }
       });
     });
     updateTrack();
