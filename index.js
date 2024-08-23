@@ -29,6 +29,7 @@ module.exports = function(app) {
   var state
   var configuration
   var delayStartTime
+  var lastAlert = 0
   var lastPositionTime
   var lastPosition
   var lastTrueHeading
@@ -652,6 +653,11 @@ module.exports = function(app) {
         title: "Send a notification after the boat has been outside of the alarms radius for the given number of seconds (0 for imediate)",
         default: 0
       },
+      repeatDelay: {
+        type: "number",
+        title: "Number of seconds between alarm notifications",
+        default: 0
+      },
       warningPercentage: {
         type: "number",
         title: "Percentage of alarm radius to set a warning (0 for none)",
@@ -901,13 +907,17 @@ module.exports = function(app) {
       }
 
       if ( state ) {
-        if ( !configuration.delay ) {
+        if ( !configuration.delay && !configuration.repeatDelay) {
           return state
         } else {
           if ( delayStartTime ) {
             if ( (Date.now() - delayStartTime)/1000 > configuration.delay ) {
               app.debug('alarm delay reached')
-              return state
+              if ( (Date.now() - lastAlert)/1000 > configuration.repeatDelay ) {
+                app.debug('repeat delay reached')
+                lastAlert = Date.now()
+                return state
+              }
             }
           } else {
             delayStartTime = Date.now()
