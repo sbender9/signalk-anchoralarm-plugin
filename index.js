@@ -439,6 +439,17 @@ module.exports = function(app) {
       }
       else
       {
+        if ( typeof configuration.position == 'undefined' )
+        {
+          res.status(403)
+          res.json({
+            statusCode: 403,
+            state: 'FAILED',
+            message: "the anchor has not been dropped"
+          })
+          return
+        }
+        
         clearIncompleteAlarm()
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
@@ -484,6 +495,98 @@ module.exports = function(app) {
             message: "can't save config"
           })
         }
+      }
+    })
+
+    router.post("/setRodeLength", (req, res) => {
+      clearIncompleteAlarm()
+      var length = req.body['length']
+      var depth = req.body['depth']
+      if ( typeof length == 'undefined' )
+      {
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "no length provided"
+        })
+        return
+      }
+
+      if ( typeof configuration.position == 'undefined' )
+      {
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: "the anchor has not been dropped"
+        })
+        return
+      }
+
+      var maxRadius = length;
+
+      if ( !depth )
+      {
+        var sd = app.getSelfPath('environment.depth.belowSurface.value')
+        if ( typeof sd != 'undefined' )
+        {
+          depth = sd
+        }
+      }
+
+      if ( depth && length )
+      {
+        var height = configuration.bowHeight;
+        var heightFromBow = depth
+        if ( typeof height !== 'undefined' && height > 0 )
+        {
+          heightFromBow += height
+        }
+        app.debug(`length: ${length} height: ${heightFromBow}`)
+        maxRadius = (length * length) - (heightFromBow *heightFromBow)
+        maxRadius = Math.sqrt(maxRadius)
+      }
+
+      app.debug("depth: " + depth)      
+      app.debug("maxRadius: " + maxRadius)
+
+      var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
+      if ( typeof gps_dist != 'undefined' )
+      {
+        maxRadius += gps_dist
+      }
+
+      var curRadius = maxRadius
+      var fudge = configuration['fudge']
+      if ( typeof fudge !== 'undefined' && fudge > 0 )
+      {
+        app.debug("fudge radius by " + fudge)
+        maxRadius += fudge
+      }
+      
+      app.debug("set anchor radius: " + maxRadius)
+
+      var delta = getAnchorDelta(app, null, configuration.position, null,
+                                 maxRadius, false, null);
+      app.handleMessage(plugin.id, delta)
+      
+      configuration["radius"] = maxRadius
+
+      try {
+        savePluginOptions()
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
+      } catch ( err ) {
+        app.error(err)
+        res.status(500)
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     })
 

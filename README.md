@@ -34,11 +34,18 @@ When a depth transducer is configured the plugin will default to an anchor alarm
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:3000/plugins/anchoralarm/dropAnchor
 ```
 
-### After you have let the anchor rode out, call setRadius. This will calculate and set the alarm radius.
+### After you have let the anchor rode out, call setRadius. This will calculate and set the alarm radius based on the vessels current position.
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:3000/plugins/anchoralarm/setRadius
 ```
+
+### Alternately, after you have let the anchor rode out, call setRodeLength. This will calculate and set the alarm radius based on rode length, depth and bow height.
+
+```
+curl -X POST -H "Content-Type: application/json" -d '{"length": 30}' http://localhost:3000/plugins/anchoralarm/setRodeLength
+```
+
 
 ### You can adjust the radius (in meters) via:
 
