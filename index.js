@@ -35,6 +35,8 @@ module.exports = function(app) {
   var positionAlarmSent
   var saveOptionsTimer
   var track = []
+  var incompleteAnchorTimer
+  var sentIncompleteAnchorAlarm
 
   plugin.start = function(props) {
     configuration = props
@@ -291,12 +293,25 @@ module.exports = function(app) {
     )
   }
 
+  function clearIncompleteAlarm()
+  {
+    if ( incompleteAnchorTimer ) {
+      clearTimeout(incompleteAnchorTimer)
+      incompleteAnchorTimer = undefined
+    }
+    if ( sentIncompleteAnchorAlarm ) {
+      sendAnchorAlarm('normal', app, plugin)
+      sentIncompleteAnchorAlarm = false
+    }
+  }
+
   function raiseAnchor() {
     app.debug("raise anchor")
     
     var delta = getAnchorDelta(app, null, null, null, null, false, null)
     app.handleMessage(plugin.id, delta)
-    
+
+    clearIncompleteAlarm()
     if ( alarm_sent )
     {
       var delta = getAnchorAlarmDelta(app, "normal")
@@ -374,6 +389,20 @@ module.exports = function(app) {
           configuration.position.altitude = depth * -1;
         }
 
+        let alarmTime = configuration.incompleteAnchorAlarmTime 
+
+        if ( alarmTime != 0 )
+        {
+          if ( alarmTime === undefined )
+            alarmTime = 10
+
+          incompleteAnchorTimer = setTimeout(() => {
+            sendAnchorAlarm('alarm', app, plugin, 'The anchoring process has not been completed')
+            sentIncompleteAnchorAlarm = true
+            incompleteAnchorTimer = undefined
+          }, alarmTime * 60 * 1000)
+        }
+
         startWatchingPosistion()
 
         try {
@@ -410,6 +439,7 @@ module.exports = function(app) {
       }
       else
       {
+        clearIncompleteAlarm()
         var radius = req.body['radius']
         if ( typeof radius == 'undefined' )
         {
@@ -703,7 +733,13 @@ module.exports = function(app) {
         type: "string",
         default: "emergency",
         "enum": ["alert", "warn", "alarm", "emergency"]
-      }      
+      },
+      incompleteAnchorAlarmTime: {
+        type: "number",
+        title: "Incomplete Anchor Alarm Time",
+        description: "An alarm will be sent after this many minutes if the anchoring process has not been completed (0 to disable)",
+        default: 10
+      }
     }
   }
 
