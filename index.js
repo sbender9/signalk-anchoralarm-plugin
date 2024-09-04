@@ -445,7 +445,12 @@ module.exports = function (app) {
             position.longitude
         );
         var radius = req.body["radius"];
-        if (typeof radius == "undefined") radius = null;
+        if (typeof radius == "undefined") {
+          radius = null;
+        }
+
+        var depth = app.getSelfPath("environment.depth.belowSurface.value");
+
         var delta = getAnchorDelta(
           app,
           vesselPosition,
@@ -453,7 +458,7 @@ module.exports = function (app) {
           0,
           radius,
           true,
-          null,
+          depth,
           null
         );
         app.handleMessage(plugin.id, delta);
@@ -464,15 +469,13 @@ module.exports = function (app) {
           latitude: position.latitude,
           longitude: position.longitude,
         };
+        if (depth) {
+          state.position.altitude = depth * -1;
+        }
         state.radius = radius;
         configuration["radius"] = radius;
         state.on = true;
         configuration["on"] = true;
-
-        var depth = app.getSelfPath("environment.depth.belowSurface.value");
-        if (depth) {
-          state.position.altitude = depth * -1;
-        }
 
         let alarmTime = configuration.incompleteAnchorAlarmTime;
 
@@ -548,6 +551,9 @@ module.exports = function (app) {
           if (typeof fudge !== "undefined" && fudge > 0) {
             radius += fudge;
           }
+
+          calculateRodeLength(position);
+
           app.debug("calc_distance: " + radius);
         } else {
           radius = Number(radius);
@@ -562,8 +568,8 @@ module.exports = function (app) {
           null,
           radius,
           false,
-          null,
-          null
+          state.position.depth * -1,
+          state.rodeLength
         );
         app.handleMessage(plugin.id, delta);
 
@@ -761,6 +767,26 @@ module.exports = function (app) {
       res.json(track);
     });
   };
+
+  function calculateRodeLength(vesselPosition) {
+    let heading = app.getSelfPath("navigation.headingTrue.value");
+    if (heading !== undefined && state.position.altitude !== undefined) {
+      let bowPosition = computeBowLocation(vesselPosition, heading);
+      let distanceFromBow = calc_distance(
+        bowPosition.latitude,
+        bowPosition.longitude,
+        state.position.latitude,
+        state.position.longitude
+      );
+
+      var height = configuration.bowHeight || 0;
+      var heightFromBow = state.position.altitude * -1;
+      heightFromBow += height;
+      state.rodeLength = Math.sqrt(
+        heightFromBow * heightFromBow + distanceFromBow * distanceFromBow
+      );
+    }
+  }
 
   function setManualAnchor(depth, rode) {
     var position = app.getSelfPath("navigation.position");
