@@ -250,7 +250,7 @@ module.exports = function (app) {
       var alarmDelta = getAnchorAlarmDelta(app, "normal");
       app.handleMessage(plugin.id, alarmDelta);
     }
-    alarm_sent = false;
+    alarm_sent = null;
     var delta = getAnchorDelta(app, null, null, null, null, false, null, null);
     app.handleMessage(plugin.id, delta);
     stopWatchingPosition();
@@ -339,9 +339,10 @@ module.exports = function (app) {
             var anchorDelta = getAnchorAlarmDelta(app, "normal");
             app.handleMessage(plugin.id, anchorDelta);
             delayStartTime = undefined;
+            alarm_sent = null;
+          } else if (!was_sent) {
+            sendAnchorAlarm(anchorState, app, plugin);
           }
-
-          sendAnchorAlarm(anchorState, app, plugin);
         }
 
         if (typeof trueHeading !== "undefined" || position) {
@@ -380,7 +381,7 @@ module.exports = function (app) {
       var alarmDelta = getAnchorAlarmDelta(app, "normal");
       app.handleMessage(plugin.id, alarmDelta);
     }
-    alarm_sent = false;
+    alarm_sent = null;
     delayStartTime = undefined;
 
     delete state.position;
