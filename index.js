@@ -1252,48 +1252,15 @@ module.exports = function (app) {
 };
 
 function calc_distance(lat1, lon1, lat2, lon2) {
-  //app.debug("calc_distance: " + lat1 + ", " + lon1 + ", " + lat2 + ", " + lon2)
-  var R = 6371000; // Radius of the earth in m
-  var dLat = degsToRad(lat2 - lat1); // deg2rad below
-  var dLon = degsToRad(lon2 - lon1);
-  var a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(degsToRad(lat1)) *
-      Math.cos(degsToRad(lat2)) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  var d = R * c; // Distance in m
-  return d;
+  return geolib.getDistance(
+    { latitude: lat1, longitude: lon1 },
+    { latitude: lat2, longitude: lon2 },
+    0.1
+  );
 }
 
 function calc_position_from(app, position, heading, distance) {
-  var dist = distance / 1000 / 1.852; //m to nm
-  dist /= (180 * 60) / Math.PI; // in radians
-
-  app.debug("dist: " + dist);
-
-  heading = Math.PI * 2 - heading;
-
-  var lat = Math.asin(
-    Math.sin(degsToRad(position.latitude)) * Math.cos(dist) +
-      Math.cos(degsToRad(position.latitude)) *
-        Math.sin(dist) *
-        Math.cos(heading)
-  );
-
-  var dlon = Math.atan2(
-    Math.sin(heading) * Math.sin(dist) * Math.cos(degsToRad(position.latitude)),
-    Math.cos(dist) - Math.sin(degsToRad(position.latitude)) * Math.sin(lat)
-  );
-
-  var lon =
-    mod(degsToRad(position.longitude) - dlon + Math.PI, 2 * Math.PI) - Math.PI;
-
-  return {
-    latitude: radsToDeg(lat),
-    longitude: radsToDeg(lon),
-  };
+  return geolib.computeDestinationPoint(position, distance, radsToDeg(heading));
 }
 
 function getAnchorAlarmDelta(app, alarmState, msg) {
@@ -1334,8 +1301,4 @@ function radsToDeg(radians) {
 
 function degsToRad(degrees) {
   return degrees * (Math.PI / 180.0);
-}
-
-function mod(x, y) {
-  return x - y * Math.floor(x / y);
 }
