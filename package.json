@@ -6,12 +6,16 @@
   "scripts": {
     "test": "$NODE $npm_package_main",
     "create-release": "github-create-release --owner sbender9 --repository signalk-anchoralarm-plugin",
-    "release": "git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release"
+    "release": "git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release",
+    "prettier": "prettier -w index.js",
+    "lint": "eslint -c .eslintrc.js --ext .ts --ext .js --fix index.js",
+    "format": "npm run prettier && npm run lint"
   },
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-webapp"
   ],
+  "signalk-plugin-enabled-by-default": false,
   "signalk": {
     "appIcon": "images/anchoralarm.png",
     "displayName": "Anchor Alarm"
@@ -27,7 +31,12 @@
     "lodash": "^4.17.4"
   },
   "devDependencies": {
-    "@signalk/github-create-release": "^1.0.1"
+    "@signalk/github-create-release": "^1.0.1",
+    "eslint": "^8.24.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-react": "^7.31.8",
+    "prettier": "^2.7.1"
   },
   "repository": {
     "type": "git",
