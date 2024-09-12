@@ -13,87 +13,86 @@
  * limitations under the License.
  */
 
-const path = require("path");
-const fs = require("fs");
-const geolib = require("geolib");
+const path = require('path')
+const fs = require('fs')
+const geolib = require('geolib')
 
-const subscribrPeriod = 1000;
+const subscribrPeriod = 1000
 
 module.exports = function (app) {
-  var plugin = {};
-  var alarm_sent = false;
-  let onStop = [];
-  var positionInterval;
-  //var state
-  var configuration;
-  var delayStartTime;
-  var lastTrueHeading;
-  var lastPosition;
-  var saveOptionsTimer;
-  var track = [];
-  var incompleteAnchorTimer;
-  var sentIncompleteAnchorAlarm;
-  var statePath;
-  var state;
+  var plugin = {}
+  var alarm_sent = false
+  let onStop = []
+  var positionInterval
+  var configuration
+  var delayStartTime
+  var lastTrueHeading
+  var lastPosition
+  var saveOptionsTimer
+  var track = []
+  var incompleteAnchorTimer
+  var sentIncompleteAnchorAlarm
+  var statePath
+  var state
 
   plugin.start = function (props) {
-    configuration = props;
+    configuration = props
     try {
-      statePath = path.join(app.getDataDirPath(), "state.json");
+      statePath = path.join(app.getDataDirPath(), 'state.json')
 
       if (fs.existsSync(statePath)) {
-        let stateString;
+        let stateString
         try {
-          stateString = fs.readFileSync(statePath, "utf8");
+          stateString = fs.readFileSync(statePath, 'utf8')
         } catch (e) {
-          app.error("Could not read state " + statePath + " - " + e);
-          return;
+          app.error('Could not read state ' + statePath + ' - ' + e)
+          return
         }
         try {
-          state = JSON.parse(stateString);
+          state = JSON.parse(stateString)
         } catch (e) {
-          app.error("Could not parse state " + e);
-          return;
+          app.error('Could not parse state ' + e)
+          return
         }
       } else {
-        state = { on: false };
+        state = { on: false }
 
-        var isOn = configuration["on"];
+        var isOn = configuration['on']
         if (isOn) {
-          state.on = isOn;
-          state.position = configuration["position"];
-          state.radius = configuration["radius"];
-          saveState();
+          state.on = isOn
+          state.position = configuration['position']
+          state.radius = configuration['radius']
+          saveState()
         }
       }
 
       if (
-        typeof state.on != "undefined" &&
+        typeof state.on != 'undefined' &&
         state.on &&
-        typeof state.position != "undefined" &&
-        typeof state.radius != "undefined"
+        typeof state.position != 'undefined' &&
+        typeof state.radius != 'undefined'
       ) {
-        startWatchingPosistion();
+        startWatchingPosistion()
       }
 
       if (app.registerActionHandler) {
         app.registerActionHandler(
-          "vessels.self",
+          'vessels.self',
           `navigation.anchor.position`,
           putPosition
-        );
+        )
 
         app.registerActionHandler(
-          "vessels.self",
+          'vessels.self',
           `navigation.anchor.maxRadius`,
           putRadius
-        );
+        )
 
         app.registerActionHandler(
-          "vessels.self",
+          'vessels.self',
           `navigation.anchor.rodeLength`,
           putRodeLength
-        );
+        )
       }
 
       app.handleMessage(plugin.id, {
@@ -101,55 +100,55 @@ module.exports = function (app) {
           {
             meta: [
               {
-                path: "navigation.anchor.bearingTrue",
-                value: { units: "rad" },
+                path: 'navigation.anchor.bearingTrue',
+                value: { units: 'rad' }
               },
               {
-                path: "navigation.anchor.apparentBearing",
-                value: { units: "rad" },
+                path: 'navigation.anchor.apparentBearing',
+                value: { units: 'rad' }
               },
               {
-                path: "navigation.anchor.rodeLength",
-                value: { units: "m" },
+                path: 'navigation.anchor.rodeLength',
+                value: { units: 'm' }
               },
               {
-                path: "navigation.anchor.fudgeFactor",
-                value: { units: "m" },
+                path: 'navigation.anchor.fudgeFactor',
+                value: { units: 'm' }
               },
               {
-                path: "navigation.anchor.distanceFromBow",
-                value: { units: "m" },
-              },
-            ],
-          },
-        ],
-      });
+                path: 'navigation.anchor.distanceFromBow',
+                value: { units: 'm' }
+              }
+            ]
+          }
+        ]
+      })
     } catch (e) {
-      plugin.started = false;
-      app.error("error: " + e);
-      console.error(e.stack);
-      return e;
+      plugin.started = false
+      app.error('error: ' + e)
+      console.error(e.stack)
+      return e
     }
-  };
+  }
 
   function saveState() {
-    fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
-    savePluginOptions();
+    fs.writeFileSync(statePath, JSON.stringify(state, null, 2))
+    savePluginOptions()
   }
 
   function savePluginOptions() {
     if (app.savePluginOptionsSync) {
-      app.savePluginOptionsSync(configuration);
+      app.savePluginOptionsSync(configuration)
     } else if (!saveOptionsTimer) {
       saveOptionsTimer = setTimeout(() => {
-        app.debug("saving options..");
-        saveOptionsTimer = undefined;
+        app.debug('saving options..')
+        saveOptionsTimer = undefined
         app.savePluginOptions(configuration, (err) => {
           if (err) {
-            app.error(err);
+            app.error(err)
           }
-        });
-      }, 1000);
+        })
+      }, 1000)
     }
   }
 
@@ -159,28 +158,28 @@ module.exports = function (app) {
         {
           values: [
             {
-              path: "navigation.anchor.maxRadius",
-              value: value,
-            },
-          ],
-        },
-      ],
-    });
+              path: 'navigation.anchor.maxRadius',
+              value: value
+            }
+          ]
+        }
+      ]
+    })
 
-    state.radius = value;
-    configuration["radius"] = value;
+    state.radius = value
+    configuration['radius'] = value
     if (state.position) {
-      state.on = true;
-      configuration["on"] = true;
-      startWatchingPosistion();
+      state.on = true
+      configuration['on'] = true
+      startWatchingPosistion()
     }
 
     try {
-      saveState();
-      return { state: "SUCCESS" };
+      saveState()
+      return { state: 'SUCCESS' }
     } catch (err) {
-      app.error(err);
-      return { state: "FAILURE", message: err.message };
+      app.error(err)
+      return { state: 'FAILURE', message: err.message }
     }
   }
 
@@ -190,27 +189,27 @@ module.exports = function (app) {
         {
           values: [
             {
-              path: "navigation.anchor.rodeLength",
-              value: value,
-            },
-          ],
-        },
-      ],
-    });
+              path: 'navigation.anchor.rodeLength',
+              value: value
+            }
+          ]
+        }
+      ]
+    })
 
-    let res = setManualAnchor(null, value);
+    let res = setManualAnchor(null, value)
 
     if (res.code != 200) {
-      return { state: "FAILURE", message: res.message };
+      return { state: 'FAILURE', message: res.message }
     } else {
-      return { state: "SUCCESS" };
+      return { state: 'SUCCESS' }
     }
   }
 
   function putPosition(context, path, value) {
     try {
       if (value == null) {
-        raiseAnchor();
+        raiseAnchor()
       } else {
         var delta = getAnchorDelta(
           app,
@@ -221,83 +220,83 @@ module.exports = function (app) {
           true,
           null,
           state.rodeLength
-        );
-        app.handleMessage(plugin.id, delta);
+        )
+        app.handleMessage(plugin.id, delta)
 
         state.position = {
           latitude: value.latitude,
           longitude: value.longitude,
-          altitude: value.altitude,
-        };
-
-        if (state.radius) {
-          state.on = true;
-          configuration["on"] = true;
-          startWatchingPosistion();
+          altitude: value.altitude
         }
 
-        saveState();
+        if (state.radius) {
+          state.on = true
+          configuration['on'] = true
+          startWatchingPosistion()
+        }
+
+        saveState()
       }
-      return { state: "SUCCESS" };
+      return { state: 'SUCCESS' }
     } catch (err) {
-      app.error(err);
-      return { state: "FAILURE", message: err.message };
+      app.error(err)
+      return { state: 'FAILURE', message: err.message }
     }
   }
 
   plugin.stop = function () {
     if (alarm_sent) {
-      var alarmDelta = getAnchorAlarmDelta(app, "normal");
-      app.handleMessage(plugin.id, alarmDelta);
+      var alarmDelta = getAnchorAlarmDelta(app, 'normal')
+      app.handleMessage(plugin.id, alarmDelta)
     }
-    alarm_sent = null;
-    var delta = getAnchorDelta(app, null, null, null, null, false, null, null);
-    app.handleMessage(plugin.id, delta);
-    stopWatchingPosition();
+    alarm_sent = null
+    var delta = getAnchorDelta(app, null, null, null, null, false, null, null)
+    app.handleMessage(plugin.id, delta)
+    stopWatchingPosition()
     if (positionInterval) {
-      clearInterval(positionInterval);
-      positionInterval = null;
+      clearInterval(positionInterval)
+      positionInterval = null
     }
-  };
+  }
 
   function stopWatchingPosition() {
-    onStop.forEach((f) => f());
-    onStop = [];
-    track = [];
+    onStop.forEach((f) => f())
+    onStop = []
+    track = []
   }
 
   function startWatchingPosistion() {
-    if (onStop.length > 0) return;
+    if (onStop.length > 0) return
 
-    track = [];
+    track = []
     app.subscriptionmanager.subscribe(
       {
-        context: "vessels.self",
+        context: 'vessels.self',
         subscribe: [
           {
-            path: "navigation.position",
-            period: subscribrPeriod,
+            path: 'navigation.position',
+            period: subscribrPeriod
           },
           {
-            path: "navigation.headingTrue",
-            period: subscribrPeriod,
-          },
-        ],
+            path: 'navigation.headingTrue',
+            period: subscribrPeriod
+          }
+        ]
       },
       onStop,
       (err) => {
-        app.error(err);
-        app.setProviderError(err);
+        app.error(err)
+        app.setProviderError(err)
       },
       (delta) => {
-        let position, trueHeading;
+        let position, trueHeading
 
         if (delta.updates) {
           delta.updates.forEach((update) => {
             if (update.values) {
               update.values.forEach((vp) => {
-                if (vp.path === "navigation.position") {
-                  position = vp.value;
+                if (vp.path === 'navigation.position') {
+                  position = vp.value
                   // Track the positon. Only record the position every minute.
                   if (
                     track.length == 0 ||
@@ -305,24 +304,24 @@ module.exports = function (app) {
                   ) {
                     track.push({
                       position: position,
-                      time: Date.now(),
-                    });
+                      time: Date.now()
+                    })
                     if (track.length > 24 * 60) {
                       // Keep only the last 24 hours of track to avoid memory issues
-                      track.shift();
+                      track.shift()
                     }
                   }
-                } else if (vp.path === "navigation.headingTrue") {
-                  trueHeading = vp.value;
+                } else if (vp.path === 'navigation.headingTrue') {
+                  trueHeading = vp.value
                 }
-              });
+              })
             }
-          });
+          })
         }
 
         if (position) {
-          var anchorState;
-          lastPosition = position;
+          var anchorState
+          lastPosition = position
           anchorState = checkPosition(
             app,
             plugin,
@@ -330,72 +329,72 @@ module.exports = function (app) {
             position,
             state.position,
             state.rodeLength
-          );
-          var was_sent = alarm_sent;
-          alarm_sent = anchorState;
+          )
+          var was_sent = alarm_sent
+          alarm_sent = anchorState
           if (was_sent && !anchorState) {
             //clear it
-            app.debug("clear_it");
-            var anchorDelta = getAnchorAlarmDelta(app, "normal");
-            app.handleMessage(plugin.id, anchorDelta);
-            delayStartTime = undefined;
-            alarm_sent = null;
+            app.debug('clear_it')
+            var anchorDelta = getAnchorAlarmDelta(app, 'normal')
+            app.handleMessage(plugin.id, anchorDelta)
+            delayStartTime = undefined
+            alarm_sent = null
           } else if (!was_sent) {
-            sendAnchorAlarm(anchorState, app, plugin);
+            sendAnchorAlarm(anchorState, app, plugin)
           }
         }
 
-        if (typeof trueHeading !== "undefined" || position) {
-          if (typeof trueHeading !== "undefined") {
-            lastTrueHeading = trueHeading;
+        if (typeof trueHeading !== 'undefined' || position) {
+          if (typeof trueHeading !== 'undefined') {
+            lastTrueHeading = trueHeading
           }
           computeAnchorApparentBearing(
             lastPosition,
             state.position,
             lastTrueHeading
-          );
+          )
         }
       }
-    );
+    )
   }
 
   function clearIncompleteAlarm() {
     if (incompleteAnchorTimer) {
-      clearTimeout(incompleteAnchorTimer);
-      incompleteAnchorTimer = undefined;
+      clearTimeout(incompleteAnchorTimer)
+      incompleteAnchorTimer = undefined
     }
     if (sentIncompleteAnchorAlarm) {
-      sendAnchorAlarm("normal", app, plugin);
-      sentIncompleteAnchorAlarm = false;
+      sendAnchorAlarm('normal', app, plugin)
+      sentIncompleteAnchorAlarm = false
     }
   }
 
   function raiseAnchor() {
-    app.debug("raise anchor");
+    app.debug('raise anchor')
 
-    var delta = getAnchorDelta(app, null, null, null, null, false, null, null);
-    app.handleMessage(plugin.id, delta);
+    var delta = getAnchorDelta(app, null, null, null, null, false, null, null)
+    app.handleMessage(plugin.id, delta)
 
-    clearIncompleteAlarm();
+    clearIncompleteAlarm()
     if (alarm_sent) {
-      var alarmDelta = getAnchorAlarmDelta(app, "normal");
-      app.handleMessage(plugin.id, alarmDelta);
+      var alarmDelta = getAnchorAlarmDelta(app, 'normal')
+      app.handleMessage(plugin.id, alarmDelta)
     }
-    alarm_sent = null;
-    delayStartTime = undefined;
+    alarm_sent = null
+    delayStartTime = undefined
 
-    delete state.position;
-    delete state.radius;
-    delete state.rodeLength;
-    delete configuration["radius"];
-    state.on = false;
-    configuration["on"] = false;
+    delete state.position
+    delete state.radius
+    delete state.rodeLength
+    delete configuration['radius']
+    state.on = false
+    configuration['on'] = false
 
-    stopWatchingPosition();
+    stopWatchingPosition()
 
     if (positionInterval) {
-      clearInterval(positionInterval);
-      positionInterval = null;
+      clearInterval(positionInterval)
+      positionInterval = null
     }
 
     app.handleMessage(plugin.id, {
@@ -403,53 +402,53 @@ module.exports = function (app) {
         {
           values: [
             {
-              path: "navigation.anchor.apparentBearing",
-              value: null,
+              path: 'navigation.anchor.apparentBearing',
+              value: null
             },
             {
-              path: "navigation.anchor.bearingTrue",
-              value: null,
-            },
-          ],
-        },
-      ],
-    });
+              path: 'navigation.anchor.bearingTrue',
+              value: null
+            }
+          ]
+        }
+      ]
+    })
 
-    saveState();
+    saveState()
   }
 
   plugin.registerWithRouter = function (router) {
-    router.post("/dropAnchor", (req, res) => {
-      var vesselPosition = app.getSelfPath("navigation.position");
+    router.post('/dropAnchor', (req, res) => {
+      var vesselPosition = app.getSelfPath('navigation.position')
       if (vesselPosition && vesselPosition.value)
-        vesselPosition = vesselPosition.value;
+        vesselPosition = vesselPosition.value
 
-      if (typeof vesselPosition == "undefined") {
-        app.debug("no position available");
-        res.status(403);
+      if (typeof vesselPosition == 'undefined') {
+        app.debug('no position available')
+        res.status(403)
         res.json({
           statusCode: 403,
-          state: "FAILED",
-          message: "no position available",
-        });
+          state: 'FAILED',
+          message: 'no position available'
+        })
       } else {
         let position = computeBowLocation(
           vesselPosition,
-          app.getSelfPath("navigation.headingTrue.value")
-        );
+          app.getSelfPath('navigation.headingTrue.value')
+        )
 
         app.debug(
-          "set anchor position to: " +
+          'set anchor position to: ' +
             position.latitude +
-            " " +
+            ' ' +
             position.longitude
-        );
-        var radius = req.body["radius"];
-        if (typeof radius == "undefined") {
-          radius = null;
+        )
+        var radius = req.body['radius']
+        if (typeof radius == 'undefined') {
+          radius = null
         }
 
-        var depth = app.getSelfPath("environment.depth.belowSurface.value");
+        var depth = app.getSelfPath('environment.depth.belowSurface.value')
 
         var delta = getAnchorDelta(
           app,
@@ -460,106 +459,106 @@ module.exports = function (app) {
           true,
           depth,
           null
-        );
-        app.handleMessage(plugin.id, delta);
+        )
+        app.handleMessage(plugin.id, delta)
 
-        app.debug("anchor delta: " + JSON.stringify(delta));
+        app.debug('anchor delta: ' + JSON.stringify(delta))
 
         state.position = {
           latitude: position.latitude,
-          longitude: position.longitude,
-        };
-        if (depth) {
-          state.position.altitude = depth * -1;
+          longitude: position.longitude
         }
-        state.radius = radius;
-        configuration["radius"] = radius;
-        state.on = true;
-        configuration["on"] = true;
+        if (depth) {
+          state.position.altitude = depth * -1
+        }
+        state.radius = radius
+        configuration['radius'] = radius
+        state.on = true
+        configuration['on'] = true
 
-        let alarmTime = configuration.incompleteAnchorAlarmTime;
+        let alarmTime = configuration.incompleteAnchorAlarmTime
 
         if (alarmTime != 0) {
-          if (alarmTime === undefined) alarmTime = 10;
+          if (alarmTime === undefined) alarmTime = 10
 
           incompleteAnchorTimer = setTimeout(() => {
             sendAnchorAlarm(
-              "alarm",
+              'alarm',
               app,
               plugin,
-              "The anchoring process has not been completed"
-            );
-            sentIncompleteAnchorAlarm = true;
-            incompleteAnchorTimer = undefined;
-          }, alarmTime * 60 * 1000);
+              'The anchoring process has not been completed'
+            )
+            sentIncompleteAnchorAlarm = true
+            incompleteAnchorTimer = undefined
+          }, alarmTime * 60 * 1000)
         }
 
-        startWatchingPosistion();
+        startWatchingPosistion()
 
         try {
-          saveState();
+          saveState()
           res.json({
             statusCode: 200,
-            state: "COMPLETED",
-          });
+            state: 'COMPLETED'
+          })
         } catch (err) {
-          app.error(err);
-          res.status(500);
+          app.error(err)
+          res.status(500)
           res.json({
             statusCode: 500,
-            state: "FAILED",
-            message: "can't save config",
-          });
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
-    });
+    })
 
-    router.post("/setRadius", (req, res) => {
-      let position = app.getSelfPath("navigation.position");
-      if (position.value) position = position.value;
-      if (typeof position == "undefined") {
-        app.debug("no position available");
-        res.status(403);
+    router.post('/setRadius', (req, res) => {
+      let position = app.getSelfPath('navigation.position')
+      if (position.value) position = position.value
+      if (typeof position == 'undefined') {
+        app.debug('no position available')
+        res.status(403)
         res.json({
           statusCode: 403,
-          state: "FAILED",
-          message: "no position available",
-        });
+          state: 'FAILED',
+          message: 'no position available'
+        })
       } else {
-        if (typeof state.position == "undefined") {
-          res.status(403);
+        if (typeof state.position == 'undefined') {
+          res.status(403)
           res.json({
             statusCode: 403,
-            state: "FAILED",
-            message: "the anchor has not been dropped",
-          });
-          return;
+            state: 'FAILED',
+            message: 'the anchor has not been dropped'
+          })
+          return
         }
 
-        clearIncompleteAlarm();
-        var radius = req.body["radius"];
-        if (typeof radius == "undefined") {
-          app.debug("state: %o", state);
+        clearIncompleteAlarm()
+        var radius = req.body['radius']
+        if (typeof radius == 'undefined') {
+          app.debug('state: %o', state)
           radius = calc_distance(
             state.position.latitude,
             state.position.longitude,
             position.latitude,
             position.longitude
-          );
+          )
 
-          var fudge = configuration.fudge;
-          if (typeof fudge !== "undefined" && fudge > 0) {
-            radius += fudge;
+          var fudge = configuration.fudge
+          if (typeof fudge !== 'undefined' && fudge > 0) {
+            radius += fudge
           }
 
-          calculateRodeLength(position);
+          calculateRodeLength(position)
 
-          app.debug("calc_distance: " + radius);
+          app.debug('calc_distance: ' + radius)
         } else {
-          radius = Number(radius);
+          radius = Number(radius)
         }
 
-        app.debug("set anchor radius: " + radius);
+        app.debug('set anchor radius: ' + radius)
 
         var delta = getAnchorDelta(
           app,
@@ -570,89 +569,89 @@ module.exports = function (app) {
           false,
           state.position.depth * -1,
           state.rodeLength
-        );
-        app.handleMessage(plugin.id, delta);
+        )
+        app.handleMessage(plugin.id, delta)
 
-        state.radius = radius;
-        configuration["radius"] = radius;
+        state.radius = radius
+        configuration['radius'] = radius
 
         try {
-          saveState();
+          saveState()
           res.json({
             statusCode: 200,
-            state: "COMPLETED",
-          });
+            state: 'COMPLETED'
+          })
         } catch (err) {
-          app.error(err);
-          res.status(500);
+          app.error(err)
+          res.status(500)
           res.json({
             statusCode: 500,
-            state: "FAILED",
-            message: "can't save config",
-          });
+            state: 'FAILED',
+            message: "can't save config"
+          })
         }
       }
-    });
+    })
 
-    router.post("/setRodeLength", (req, res) => {
-      clearIncompleteAlarm();
-      var length = req.body["length"];
-      var depth = req.body["depth"];
-      if (typeof length == "undefined") {
-        res.status(403);
+    router.post('/setRodeLength', (req, res) => {
+      clearIncompleteAlarm()
+      var length = req.body['length']
+      var depth = req.body['depth']
+      if (typeof length == 'undefined') {
+        res.status(403)
         res.json({
           statusCode: 403,
-          state: "FAILED",
-          message: "no length provided",
-        });
-        return;
+          state: 'FAILED',
+          message: 'no length provided'
+        })
+        return
       }
 
-      if (typeof state.position == "undefined") {
-        res.status(403);
+      if (typeof state.position == 'undefined') {
+        res.status(403)
         res.json({
           statusCode: 403,
-          state: "FAILED",
-          message: "the anchor has not been dropped",
-        });
-        return;
+          state: 'FAILED',
+          message: 'the anchor has not been dropped'
+        })
+        return
       }
 
-      var maxRadius = length;
+      var maxRadius = length
 
       if (!depth) {
-        var sd = app.getSelfPath("environment.depth.belowSurface.value");
-        if (typeof sd != "undefined") {
-          depth = sd;
+        var sd = app.getSelfPath('environment.depth.belowSurface.value')
+        if (typeof sd != 'undefined') {
+          depth = sd
         }
       }
 
       if (depth && length) {
-        var height = configuration.bowHeight;
-        var heightFromBow = depth;
-        if (typeof height !== "undefined" && height > 0) {
-          heightFromBow += height;
+        var height = configuration.bowHeight
+        var heightFromBow = depth
+        if (typeof height !== 'undefined' && height > 0) {
+          heightFromBow += height
         }
-        app.debug(`length: ${length} height: ${heightFromBow}`);
-        maxRadius = length * length - heightFromBow * heightFromBow;
-        maxRadius = Math.sqrt(maxRadius);
+        app.debug(`length: ${length} height: ${heightFromBow}`)
+        maxRadius = length * length - heightFromBow * heightFromBow
+        maxRadius = Math.sqrt(maxRadius)
       }
 
-      app.debug("depth: " + depth);
-      app.debug("maxRadius: " + maxRadius);
+      app.debug('depth: ' + depth)
+      app.debug('maxRadius: ' + maxRadius)
 
-      var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
-      if (typeof gps_dist != "undefined") {
-        maxRadius += gps_dist;
+      var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+      if (typeof gps_dist != 'undefined') {
+        maxRadius += gps_dist
       }
 
-      var fudge = configuration.fudge;
-      if (typeof fudge !== "undefined" && fudge > 0) {
-        app.debug("fudge radius by " + fudge);
-        maxRadius += fudge;
+      var fudge = configuration.fudge
+      if (typeof fudge !== 'undefined' && fudge > 0) {
+        app.debug('fudge radius by ' + fudge)
+        maxRadius += fudge
       }
 
-      app.debug("set anchor radius: " + maxRadius);
+      app.debug('set anchor radius: ' + maxRadius)
 
       var delta = getAnchorDelta(
         app,
@@ -663,59 +662,59 @@ module.exports = function (app) {
         false,
         null,
         length
-      );
-      app.handleMessage(plugin.id, delta);
+      )
+      app.handleMessage(plugin.id, delta)
 
-      state.radius = maxRadius;
-      configuration["radius"] = maxRadius;
-      state.rodeLength = length;
+      state.radius = maxRadius
+      configuration['radius'] = maxRadius
+      state.rodeLength = length
 
       try {
-        saveState();
+        saveState()
         res.json({
           statusCode: 200,
-          state: "COMPLETED",
-        });
+          state: 'COMPLETED'
+        })
       } catch (err) {
-        app.error(err);
-        res.status(500);
+        app.error(err)
+        res.status(500)
         res.json({
           statusCode: 500,
-          state: "FAILED",
-          message: "can't save config",
-        });
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
-    });
+    })
 
-    router.post("/raiseAnchor", (req, res) => {
+    router.post('/raiseAnchor', (req, res) => {
       try {
-        raiseAnchor();
+        raiseAnchor()
         res.json({
           statusCode: 200,
-          state: "COMPLETED",
-        });
+          state: 'COMPLETED'
+        })
       } catch (err) {
-        app.error(err);
-        res.status(500);
+        app.error(err)
+        res.status(500)
         res.json({
           statusCode: 500,
-          state: "FAILED",
-          message: "can't save config",
-        });
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
-    });
+    })
 
-    router.post("/setAnchorPosition", (req, res) => {
-      var old_pos = app.getSelfPath("navigation.anchor.position.value");
-      var depth;
+    router.post('/setAnchorPosition', (req, res) => {
+      var old_pos = app.getSelfPath('navigation.anchor.position.value')
+      var depth
 
       if (old_pos && old_pos.altitude) {
-        depth = old_pos.altitude;
+        depth = old_pos.altitude
       }
 
-      var position = req.body["position"];
+      var position = req.body['position']
 
-      var maxRadius = app.getSelfPath("navigation.anchor.maxRadius.value");
+      var maxRadius = app.getSelfPath('navigation.anchor.maxRadius.value')
 
       var delta = getAnchorDelta(
         app,
@@ -726,132 +725,132 @@ module.exports = function (app) {
         false,
         depth,
         state.rodeLength
-      );
+      )
 
-      app.debug("setAnchorPosition: " + JSON.stringify(delta));
-      app.handleMessage(plugin.id, delta);
+      app.debug('setAnchorPosition: ' + JSON.stringify(delta))
+      app.handleMessage(plugin.id, delta)
 
       state.position = {
         latitude: position.latitude,
         longitude: position.longitude,
-        altitude: depth,
-      };
+        altitude: depth
+      }
 
       try {
-        saveState();
+        saveState()
         res.json({
           statusCode: 200,
-          state: "COMPLETED",
-        });
+          state: 'COMPLETED'
+        })
       } catch (err) {
-        app.error(err);
-        res.status(500);
+        app.error(err)
+        res.status(500)
         res.json({
           statusCode: 500,
-          state: "FAILED",
-          message: "can't save config",
-        });
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
-    });
+    })
 
-    router.post("/setManualAnchor", (req, res) => {
-      app.debug("set manual anchor");
-      var depth = req.body["anchorDepth"];
-      var rode = req.body["rodeLength"];
-      var result = setManualAnchor(depth, rode);
-      res.status(result.statusCode);
-      res.json(result.message);
-    });
+    router.post('/setManualAnchor', (req, res) => {
+      app.debug('set manual anchor')
+      var depth = req.body['anchorDepth']
+      var rode = req.body['rodeLength']
+      var result = setManualAnchor(depth, rode)
+      res.status(result.statusCode)
+      res.json(result.message)
+    })
 
-    router.get("/getTrack", (req, res) => {
-      res.json(track);
-    });
-  };
+    router.get('/getTrack', (req, res) => {
+      res.json(track)
+    })
+  }
 
   function calculateRodeLength(vesselPosition) {
-    let heading = app.getSelfPath("navigation.headingTrue.value");
+    let heading = app.getSelfPath('navigation.headingTrue.value')
     if (heading !== undefined && state.position.altitude !== undefined) {
-      let bowPosition = computeBowLocation(vesselPosition, heading);
+      let bowPosition = computeBowLocation(vesselPosition, heading)
       let distanceFromBow = calc_distance(
         bowPosition.latitude,
         bowPosition.longitude,
         state.position.latitude,
         state.position.longitude
-      );
+      )
 
-      var height = configuration.bowHeight || 0;
-      var heightFromBow = state.position.altitude * -1;
-      heightFromBow += height;
+      var height = configuration.bowHeight || 0
+      var heightFromBow = state.position.altitude * -1
+      heightFromBow += height
       state.rodeLength = Math.sqrt(
         heightFromBow * heightFromBow + distanceFromBow * distanceFromBow
-      );
+      )
     }
   }
 
   function setManualAnchor(depth, rode) {
-    var position = app.getSelfPath("navigation.position");
-    if (position.value) position = position.value;
-    if (typeof position == "undefined") {
-      app.debug("no position available");
+    var position = app.getSelfPath('navigation.position')
+    if (position.value) position = position.value
+    if (typeof position == 'undefined') {
+      app.debug('no position available')
       return {
         statusCode: 403,
-        state: "FAILED",
-        message: "no position available",
-      };
-    }
-
-    var heading = app.getSelfPath("navigation.headingTrue.value");
-
-    if (typeof heading == "undefined") {
-      heading = app.getSelfPath("navigation.headingMagnetic.value");
-      if (typeof heading == "undefined") {
-        return {
-          statusCode: 403,
-          state: "FAILED",
-          message: "no heading available",
-        };
+        state: 'FAILED',
+        message: 'no position available'
       }
     }
 
-    app.debug("anchor rode: " + rode + " depth: " + depth);
+    var heading = app.getSelfPath('navigation.headingTrue.value')
 
-    var maxRadius = rode;
+    if (typeof heading == 'undefined') {
+      heading = app.getSelfPath('navigation.headingMagnetic.value')
+      if (typeof heading == 'undefined') {
+        return {
+          statusCode: 403,
+          state: 'FAILED',
+          message: 'no heading available'
+        }
+      }
+    }
+
+    app.debug('anchor rode: ' + rode + ' depth: ' + depth)
+
+    var maxRadius = rode
 
     if (depth == 0) {
-      var sd = app.getSelfPath("environment.depth.belowSurface.value");
-      if (typeof sd != "undefined") {
-        depth = sd;
+      var sd = app.getSelfPath('environment.depth.belowSurface.value')
+      if (typeof sd != 'undefined') {
+        depth = sd
       }
     }
 
     if (depth != 0 && rode != 0) {
-      var height = configuration.bowHeight;
-      var heightFromBow = depth;
-      if (typeof height !== "undefined" && height > 0) {
-        heightFromBow += height;
+      var height = configuration.bowHeight
+      var heightFromBow = depth
+      if (typeof height !== 'undefined' && height > 0) {
+        heightFromBow += height
       }
       //maxRadius = (depth * depth) + (rode * rode)
-      maxRadius = rode * rode - heightFromBow * heightFromBow;
-      maxRadius = Math.sqrt(maxRadius);
+      maxRadius = rode * rode - heightFromBow * heightFromBow
+      maxRadius = Math.sqrt(maxRadius)
     }
 
-    app.debug("depth: " + depth);
-    app.debug("heading: " + heading);
-    app.debug("maxRadius: " + maxRadius);
+    app.debug('depth: ' + depth)
+    app.debug('heading: ' + heading)
+    app.debug('maxRadius: ' + maxRadius)
 
-    var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
-    if (typeof gps_dist != "undefined") {
-      maxRadius += gps_dist;
+    var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+    if (typeof gps_dist != 'undefined') {
+      maxRadius += gps_dist
     }
 
-    var curRadius = maxRadius;
-    var fudge = configuration.fudge;
-    if (typeof fudge !== "undefined" && fudge > 0) {
-      app.debug("fudge radius by " + fudge);
-      maxRadius += fudge;
+    var curRadius = maxRadius
+    var fudge = configuration.fudge
+    if (typeof fudge !== 'undefined' && fudge > 0) {
+      app.debug('fudge radius by ' + fudge)
+      maxRadius += fudge
     }
 
-    var newposition = calc_position_from(app, position, heading, curRadius);
+    var newposition = calc_position_from(app, position, heading, curRadius)
 
     var delta = getAnchorDelta(
       app,
@@ -862,95 +861,95 @@ module.exports = function (app) {
       true,
       depth,
       rode
-    );
-    app.handleMessage(plugin.id, delta);
+    )
+    app.handleMessage(plugin.id, delta)
 
-    state.on = true;
-    configuration["on"] = true;
-    state.radius = maxRadius;
-    configuration["radius"] = maxRadius;
-    state.position = newposition;
+    state.on = true
+    configuration['on'] = true
+    state.radius = maxRadius
+    configuration['radius'] = maxRadius
+    state.position = newposition
     if (rode) {
-      state.rodeLength = rode;
+      state.rodeLength = rode
     }
 
     if (depth) {
-      state.position.altitude = depth * -1;
+      state.position.altitude = depth * -1
     }
 
-    startWatchingPosistion();
+    startWatchingPosistion()
 
     try {
-      saveState();
-      return { statusCode: 200, state: "COMPLETED", message: "ok" };
+      saveState()
+      return { statusCode: 200, state: 'COMPLETED', message: 'ok' }
     } catch (err) {
-      app.error(err);
-      return { statusCode: 501, state: "FAILED", message: err.message };
+      app.error(err)
+      return { statusCode: 501, state: 'FAILED', message: err.message }
     }
   }
 
-  plugin.id = "anchoralarm";
-  plugin.name = "Anchor Alarm";
+  plugin.id = 'anchoralarm'
+  plugin.name = 'Anchor Alarm'
   plugin.description =
-    "Plugin that checks the vessel position to see if there's anchor drift";
+    "Plugin that checks the vessel position to see if there's anchor drift"
 
   plugin.schema = {
-    title: "Anchor Alarm",
-    type: "object",
-    required: ["radius", "active"],
+    title: 'Anchor Alarm',
+    type: 'object',
+    required: ['radius', 'active'],
     properties: {
       delay: {
-        type: "number",
+        type: 'number',
         title:
-          "Send a notification after the boat has been outside of the alarms radius for the given number of seconds (0 for imediate)",
-        default: 0,
+          'Send a notification after the boat has been outside of the alarms radius for the given number of seconds (0 for imediate)',
+        default: 0
       },
       warningPercentage: {
-        type: "number",
-        title: "Percentage of alarm radius to set a warning (0 for none)",
-        default: 0,
+        type: 'number',
+        title: 'Percentage of alarm radius to set a warning (0 for none)',
+        default: 0
       },
       warningNotification: {
-        type: "boolean",
-        title: "Send a notification when past the warning percentage",
-        default: false,
+        type: 'boolean',
+        title: 'Send a notification when past the warning percentage',
+        default: false
       },
       noPositionAlarmTime: {
-        type: "number",
+        type: 'number',
         title:
-          "Send a notification if no position is received for the given number of seconds",
-        default: 10,
+          'Send a notification if no position is received for the given number of seconds',
+        default: 10
       },
       fudge: {
-        type: "number",
-        title: "Alarm Radius Fudge Factor (m)",
+        type: 'number',
+        title: 'Alarm Radius Fudge Factor (m)',
         description:
-          "When setting an automatic alarm, this will be added to the alarm radius to handle gps accuracy or a slightly off anchor position",
-        default: 0,
+          'When setting an automatic alarm, this will be added to the alarm radius to handle gps accuracy or a slightly off anchor position',
+        default: 0
       },
       bowHeight: {
-        type: "number",
-        title: "The height of the bow from the water (m)",
-        description: "This is used to calculate rode length",
-        default: 0,
+        type: 'number',
+        title: 'The height of the bow from the water (m)',
+        description: 'This is used to calculate rode length',
+        default: 0
       },
       state: {
-        title: "State",
+        title: 'State',
         description:
-          "When an anchor drift notifcation is sent, this wil be used as the notitication state",
-        type: "string",
-        default: "emergency",
-        enum: ["alert", "warn", "alarm", "emergency"],
+          'When an anchor drift notifcation is sent, this wil be used as the notitication state',
+        type: 'string',
+        default: 'emergency',
+        enum: ['alert', 'warn', 'alarm', 'emergency']
       },
       incompleteAnchorAlarmTime: {
-        type: "number",
-        title: "Incomplete Anchor Alarm Time",
+        type: 'number',
+        title: 'Incomplete Anchor Alarm Time',
         description:
-          "An alarm will be sent after this many minutes if the anchoring process has not been completed (0 to disable)",
-        default: 10,
-      },
-    },
-  };
+          'An alarm will be sent after this many minutes if the anchoring process has not been completed (0 to disable)',
+        default: 10
+      }
+    }
+  }
 
   function getAnchorDelta(
     app,
@@ -962,169 +961,167 @@ module.exports = function (app) {
     depth,
     rodeLength
   ) {
-    var values;
+    var values
 
     if (vesselPosition == null) {
-      vesselPosition = app.getSelfPath("navigation.position.value");
+      vesselPosition = app.getSelfPath('navigation.position.value')
     }
 
     if (positionArg) {
       var position = {
         latitude: positionArg.latitude,
-        longitude: positionArg.longitude,
-      };
+        longitude: positionArg.longitude
+      }
 
       if (isSet) {
         if (!depth) {
-          depth = app.getSelfPath("environment.depth.belowSurface.value");
+          depth = app.getSelfPath('environment.depth.belowSurface.value')
         }
-        app.debug("depth: %o", depth);
-        if (typeof depth != "undefined") {
-          position.altitude = -1 * depth;
+        app.debug('depth: %o', depth)
+        if (typeof depth != 'undefined') {
+          position.altitude = -1 * depth
         }
       } else {
-        depth = state.position.altitude;
-        if (typeof depth != "undefined") {
-          position.altitude = depth;
+        depth = state.position.altitude
+        if (typeof depth != 'undefined') {
+          position.altitude = depth
         }
       }
 
       values = [
         {
-          path: "navigation.anchor.position",
-          value: position,
-        },
-      ];
+          path: 'navigation.anchor.position',
+          value: position
+        }
+      ]
 
       let bowPosition = computeBowLocation(
         vesselPosition,
-        app.getSelfPath("navigation.headingTrue.value")
-      );
-      let bearing = degsToRad(
-        geolib.getRhumbLineBearing(bowPosition, position)
-      );
+        app.getSelfPath('navigation.headingTrue.value')
+      )
+      let bearing = degsToRad(geolib.getRhumbLineBearing(bowPosition, position))
       let distanceFromBow = calc_distance(
         bowPosition.latitude,
         bowPosition.longitude,
         position.latitude,
         position.longitude
-      );
+      )
 
       values.push({
-        path: "navigation.anchor.distanceFromBow",
-        value: distanceFromBow,
-      });
+        path: 'navigation.anchor.distanceFromBow',
+        value: distanceFromBow
+      })
 
       values.push({
-        path: "navigation.anchor.bearingTrue",
-        value: bearing,
-      });
+        path: 'navigation.anchor.bearingTrue',
+        value: bearing
+      })
 
       if (rodeLength) {
         values.push({
-          path: "navigation.anchor.rodeLength",
-          value: rodeLength,
-        });
+          path: 'navigation.anchor.rodeLength',
+          value: rodeLength
+        })
       }
 
       if (currentRadius != null) {
         values.push({
-          path: "navigation.anchor.currentRadius",
-          value: currentRadius,
-        });
+          path: 'navigation.anchor.currentRadius',
+          value: currentRadius
+        })
       }
 
       if (maxRadius != null) {
         values.push({
-          path: "navigation.anchor.maxRadius",
-          value: maxRadius,
-        });
-        var zones;
+          path: 'navigation.anchor.maxRadius',
+          value: maxRadius
+        })
+        var zones
         if (configuration.warningPercentage) {
-          let warning = maxRadius * (configuration.warningPercentage / 100);
+          let warning = maxRadius * (configuration.warningPercentage / 100)
           zones = [
             {
-              state: "normal",
+              state: 'normal',
               lower: 0,
-              upper: warning,
+              upper: warning
             },
             {
-              state: "warn",
+              state: 'warn',
               lower: warning,
-              upper: maxRadius,
+              upper: maxRadius
             },
             {
               state: configuration.state,
-              lower: maxRadius,
-            },
-          ];
+              lower: maxRadius
+            }
+          ]
         } else {
           zones = [
             {
-              state: "normal",
+              state: 'normal',
               lower: 0,
-              upper: maxRadius,
+              upper: maxRadius
             },
             {
               state: configuration.state,
-              lower: maxRadius,
-            },
-          ];
+              lower: maxRadius
+            }
+          ]
         }
         values.push({
-          path: "navigation.anchor.meta",
+          path: 'navigation.anchor.meta',
           value: {
-            zones: zones,
-          },
-        });
+            zones: zones
+          }
+        })
       }
-      if (typeof configuration.bowHeight !== "undefined") {
+      if (typeof configuration.bowHeight !== 'undefined') {
         values.push({
-          path: "design.bowAnchorHight",
-          value: configuration.bowHeight,
-        });
+          path: 'design.bowAnchorHight',
+          value: configuration.bowHeight
+        })
       }
-      if (typeof configuration.fudge !== "undefined") {
+      if (typeof configuration.fudge !== 'undefined') {
         values.push({
-          path: "navigation.anchor.fudgeFactor",
-          value: configuration.fudge,
-        });
+          path: 'navigation.anchor.fudgeFactor',
+          value: configuration.fudge
+        })
       }
     } else {
       values = [
         {
-          path: "navigation.anchor.position",
-          value: null, //{ latitude: null, longitude: null, altitude: null }
+          path: 'navigation.anchor.position',
+          value: null //{ latitude: null, longitude: null, altitude: null }
         },
         {
-          path: "navigation.anchor.currentRadius",
-          value: null,
+          path: 'navigation.anchor.currentRadius',
+          value: null
         },
         {
-          path: "navigation.anchor.maxRadius",
-          value: null,
+          path: 'navigation.anchor.maxRadius',
+          value: null
         },
         {
-          path: "navigation.anchor.distanceFromBow",
-          value: null,
+          path: 'navigation.anchor.distanceFromBow',
+          value: null
         },
         {
-          path: "navigation.anchor.rodeLength",
-          value: null,
-        },
-      ];
+          path: 'navigation.anchor.rodeLength',
+          value: null
+        }
+      ]
     }
 
     var delta = {
       updates: [
         {
-          values: values,
-        },
-      ],
-    };
+          values: values
+        }
+      ]
+    }
 
     //app.debug("anchor delta: " + util.inspect(delta, {showHidden: false, depth: 6}))
-    return delta;
+    return delta
   }
 
   function checkPosition(
@@ -1142,9 +1139,9 @@ module.exports = function (app) {
       possition.longitude,
       anchor_position.latitude,
       anchor_position.longitude
-    );
+    )
 
-    app.debug("distance: " + meters + ", radius: " + radius);
+    app.debug('distance: ' + meters + ', radius: ' + radius)
 
     var delta = getAnchorDelta(
       app,
@@ -1155,56 +1152,56 @@ module.exports = function (app) {
       false,
       null,
       rodeLength
-    );
-    app.handleMessage(plugin.id, delta);
+    )
+    app.handleMessage(plugin.id, delta)
 
     if (radius != null) {
-      var alarmState;
+      var alarmState
       var warning = configuration.warningPercentage
         ? (configuration.warningPercentage / 100) * radius
-        : 0;
+        : 0
       if (meters > radius) {
-        alarmState = configuration.state;
+        alarmState = configuration.state
       } else if (
         warning > 0 &&
         configuration.warningNotification &&
         meters > warning
       ) {
-        alarmState = "warn";
+        alarmState = 'warn'
       }
 
       if (alarmState) {
         if (!configuration.delay) {
-          return alarmState;
+          return alarmState
         } else {
           if (delayStartTime) {
             if ((Date.now() - delayStartTime) / 1000 > configuration.delay) {
-              app.debug("alarm delay reached");
-              return alarmState;
+              app.debug('alarm delay reached')
+              return alarmState
             }
           } else {
-            delayStartTime = Date.now();
-            app.debug("delaying alarm for %d seconds", configuration.delay);
+            delayStartTime = Date.now()
+            app.debug('delaying alarm for %d seconds', configuration.delay)
           }
         }
       } else if (delayStartTime) {
-        delayStartTime = undefined;
+        delayStartTime = undefined
       }
     }
 
-    return null;
+    return null
   }
 
   function computeBowLocation(position, heading) {
-    if (typeof heading != "undefined") {
-      var gps_dist = app.getSelfPath("sensors.gps.fromBow.value");
-      app.debug("gps_dist: " + gps_dist);
-      if (typeof gps_dist != "undefined") {
-        position = calc_position_from(app, position, heading, gps_dist);
-        app.debug("adjusted position by " + gps_dist);
+    if (typeof heading != 'undefined') {
+      var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+      app.debug('gps_dist: ' + gps_dist)
+      if (typeof gps_dist != 'undefined') {
+        position = calc_position_from(app, position, heading, gps_dist)
+        app.debug('adjusted position by ' + gps_dist)
       }
     }
-    return position;
+    return position
   }
 
   function computeAnchorApparentBearing(
@@ -1215,117 +1212,117 @@ module.exports = function (app) {
     if (
       vesselPosition &&
       anchorPosition &&
-      typeof trueHeading !== "undefined"
+      typeof trueHeading !== 'undefined'
     ) {
-      let bowPosition = computeBowLocation(vesselPosition, trueHeading);
+      let bowPosition = computeBowLocation(vesselPosition, trueHeading)
       let bearing = degsToRad(
         geolib.getRhumbLineBearing(bowPosition, anchorPosition)
-      );
+      )
 
       /* there's got to be a better way?? */
-      let offset;
+      let offset
       if (bearing > Math.PI) {
-        offset = Math.PI * 2 - bearing;
+        offset = Math.PI * 2 - bearing
       } else {
-        offset = -bearing;
+        offset = -bearing
       }
 
-      let zeroed = trueHeading + offset;
-      let apparent;
+      let zeroed = trueHeading + offset
+      let apparent
       if (zeroed < Math.PI) {
-        apparent = -zeroed;
+        apparent = -zeroed
       } else {
-        apparent = zeroed;
+        apparent = zeroed
         if (apparent > Math.PI) {
-          apparent = Math.PI * 2 - apparent;
+          apparent = Math.PI * 2 - apparent
         }
       }
 
       app.debug(
-        "apparent " +
+        'apparent ' +
           radsToDeg(trueHeading) +
-          ", " +
+          ', ' +
           radsToDeg(bearing) +
-          ", " +
+          ', ' +
           apparent +
-          ", " +
+          ', ' +
           radsToDeg(apparent)
-      );
+      )
 
       app.handleMessage(plugin.id, {
         updates: [
           {
             values: [
               {
-                path: "navigation.anchor.apparentBearing",
-                value: apparent,
-              },
-            ],
-          },
-        ],
-      });
+                path: 'navigation.anchor.apparentBearing',
+                value: apparent
+              }
+            ]
+          }
+        ]
+      })
     }
   }
 
   function sendAnchorAlarm(alarmState, app, plugin, msg) {
     if (alarmState) {
-      var delta = getAnchorAlarmDelta(app, alarmState, msg);
-      app.debug("send alarm: %j", delta);
-      app.handleMessage(plugin.id, delta);
+      var delta = getAnchorAlarmDelta(app, alarmState, msg)
+      app.debug('send alarm: %j', delta)
+      app.handleMessage(plugin.id, delta)
     }
   }
 
-  return plugin;
-};
+  return plugin
+}
 
 function calc_distance(lat1, lon1, lat2, lon2) {
   return geolib.getDistance(
     { latitude: lat1, longitude: lon1 },
     { latitude: lat2, longitude: lon2 },
     0.1
-  );
+  )
 }
 
 function calc_position_from(app, position, heading, distance) {
-  return geolib.computeDestinationPoint(position, distance, radsToDeg(heading));
+  return geolib.computeDestinationPoint(position, distance, radsToDeg(heading))
 }
 
 function getAnchorAlarmDelta(app, alarmState, msg) {
   if (!msg) {
     msg =
-      "Anchor Alarm - " +
+      'Anchor Alarm - ' +
       alarmState.charAt(0).toUpperCase() +
-      alarmState.slice(1);
+      alarmState.slice(1)
   }
-  let method = ["visual", "sound"];
-  const existing = app.getSelfPath("notifications.navigation.anchor.value");
-  app.debug("existing %j", existing);
-  if (existing && existing.state !== "normal") {
-    method = existing.method;
+  let method = ['visual', 'sound']
+  const existing = app.getSelfPath('notifications.navigation.anchor.value')
+  app.debug('existing %j', existing)
+  if (existing && existing.state !== 'normal') {
+    method = existing.method
   }
   var delta = {
     updates: [
       {
         values: [
           {
-            path: "notifications.navigation.anchor",
+            path: 'notifications.navigation.anchor',
             value: {
               state: alarmState,
               method,
-              message: msg,
-            },
-          },
-        ],
-      },
-    ],
-  };
-  return delta;
+              message: msg
+            }
+          }
+        ]
+      }
+    ]
+  }
+  return delta
 }
 
 function radsToDeg(radians) {
-  return (radians * 180) / Math.PI;
+  return (radians * 180) / Math.PI
 }
 
 function degsToRad(degrees) {
-  return degrees * (Math.PI / 180.0);
+  return degrees * (Math.PI / 180.0)
 }
