@@ -1077,7 +1077,7 @@ module.exports = function (app) {
       }
       if (typeof configuration.bowHeight !== 'undefined') {
         values.push({
-          path: 'design.bowAnchorHight',
+          path: 'design.bowAnchorHeight',
           value: configuration.bowHeight
         })
       }
