@@ -137,7 +137,8 @@
       boat.setLatLng(latlng); 
       boat.setRotationAngle(heading);
       
-      historyLine.addLatLng(latlng)
+      if (historyLine)
+        historyLine.addLatLng(latlng)
     });
 
     $.get('/signalk/v1/api/vessels/self/navigation/anchor/currentRadius/value', (radius) => {
@@ -247,7 +248,7 @@
         }
       });
       
-      $.get('/plugins/anchoralarm/positionHistory', (data) => {
+      $.get('/plugins/hoekens-anchor-alarm/positionHistory', (data) => {
         jdata = JSON.parse(data)
         if (jdata.length) {
           positionHistory = jdata;
@@ -287,23 +288,23 @@
   $('#raiseAnchor').click( () => {
     let agree=confirm('Do you really want to disable your anchor alarm?');
     if (agree) {
-      $.post('/plugins/anchoralarm/raiseAnchor', () => {
+      $.post('/plugins/hoekens-anchor-alarm/raiseAnchor', () => {
         raiseAnchor();
       });
     }
   });
 
-  $('#dropAnchor').click( () => {
-    $.post('/plugins/anchoralarm/dropAnchor', () => {
+  $('#dropAnchor').click(() => {
+    $.post('/plugins/hoekens-anchor-alarm/dropAnchor', () => {
       let mc = map.getCenter()
       let newPosition = {latitude: mc.lat, longitude: mc.lng};
-      $.post('/plugins/anchoralarm/setAnchorPosition', { position: newPosition}, () => {
-        $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius }, () => {
+      $.post('/plugins/hoekens-anchor-alarm/setAnchorPosition', { position: newPosition}, () => {
+        $.post('/plugins/hoekens-anchor-alarm/setRadius', { radius: maxRadius }, () => {
             dropAnchor(mc, maxRadius);
         });
       });
     }).fail((response) => {
-    	if (response.status = 401) {
+    	if (response.status == 401) {
     	  location.href="/admin/#/login";
     	}
     });
@@ -318,14 +319,14 @@
     uiSetRadius(newRadius);
 
     if (isAnchored)
-      $.post('/plugins/anchoralarm/setRadius', { radius: newRadius });
+      $.post('/plugins/hoekens-anchor-alarm/setRadius', { radius: newRadius });
   });
 
   $('#increaseRadius').click( () => {
     maxRadius = parseInt(maxRadius) + 5;
     uiSetRadius(maxRadius);
     if (isAnchored)
-      $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius });
+      $.post('/plugins/hoekens-anchor-alarm/setRadius', { radius: maxRadius });
   });
 
   $('#decreaseRadius').click( () => {
@@ -336,7 +337,7 @@
     maxRadius = maxRadius - 5;
     uiSetRadius(maxRadius)
     if (isAnchored)
-      $.post('/plugins/anchoralarm/setRadius', { radius: maxRadius });
+      $.post('/plugins/hoekens-anchor-alarm/setRadius', { radius: maxRadius });
   });
   
   function uiSetRadius(radius) {

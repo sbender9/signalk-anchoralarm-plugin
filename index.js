@@ -625,12 +625,12 @@ module.exports = function(app) {
       }
     }
     
-  plugin.id = "anchoralarm"
-  plugin.name = "Anchor Alarm"
-  plugin.description = "Plugin that checks the vessel position to see if there's anchor drift"
+  plugin.id = "hoekens-anchor-alarm"
+  plugin.name = "Hoeken's Anchor Alarm"
+  plugin.description = "Fork of signalk-anchoralarm-plugin"
 
   plugin.schema = {
-    title: "Anchor Alarm",
+    title: "Hoeken's Anchor Alarm",
     type: "object",
     required: [
       "radius",
@@ -991,8 +991,6 @@ module.exports = function(app) {
     }
   }
 
-
-   
   return plugin;
 }
 
@@ -1074,5 +1072,3 @@ function mod(x,y){
 function mpsToKn(mps) {
   return 1.9438444924574 * mps
 }
-
-
