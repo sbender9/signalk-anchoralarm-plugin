@@ -22,6 +22,7 @@ const subscribrPeriod = 1000
 module.exports = function (app) {
   var plugin = {}
   var alarm_sent = false
+  var prev_anchorState = false
   let onStop = []
   var positionInterval
   var configuration
@@ -339,9 +340,10 @@ module.exports = function (app) {
             app.handleMessage(plugin.id, anchorDelta)
             delayStartTime = undefined
             alarm_sent = null
-          } else if (!was_sent) {
+          } else if (!was_sent || prev_anchorState != anchorState) {
             sendAnchorAlarm(anchorState, app, plugin)
           }
+          prev_anchorState = anchorState
         }
 
         if (typeof trueHeading !== 'undefined' || position) {
