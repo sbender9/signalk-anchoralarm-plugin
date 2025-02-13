@@ -361,6 +361,7 @@ module.exports = function (app) {
   }
 
   function clearIncompleteAlarm() {
+    app.debug('clearIncompleteAlarm')
     if (incompleteAnchorTimer) {
       clearTimeout(incompleteAnchorTimer)
       incompleteAnchorTimer = undefined
@@ -463,6 +464,8 @@ module.exports = function (app) {
           null
         )
         app.handleMessage(plugin.id, delta)
+
+        sendAnchorAlarm('normal', app, plugin)
 
         app.debug('anchor delta: ' + JSON.stringify(delta))
 
@@ -1197,10 +1200,10 @@ module.exports = function (app) {
   function computeBowLocation(position, heading) {
     if (typeof heading != 'undefined') {
       var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
-      app.debug('gps_dist: ' + gps_dist)
+      //app.debug('gps_dist: ' + gps_dist)
       if (typeof gps_dist != 'undefined') {
         position = calc_position_from(app, position, heading, gps_dist)
-        app.debug('adjusted position by ' + gps_dist)
+        //app.debug('adjusted position by ' + gps_dist)
       }
     }
     return position
@@ -1240,6 +1243,7 @@ module.exports = function (app) {
         }
       }
 
+      /*
       app.debug(
         'apparent ' +
           radsToDeg(trueHeading) +
@@ -1249,7 +1253,8 @@ module.exports = function (app) {
           apparent +
           ', ' +
           radsToDeg(apparent)
-      )
+          )
+          */
 
       app.handleMessage(plugin.id, {
         updates: [
