@@ -600,8 +600,8 @@ module.exports = function (app) {
 
     router.post('/setRodeLength', (req, res) => {
       clearIncompleteAlarm()
-      var length = req.body['length']
-      var depth = req.body['depth']
+      let length = req.body['length']
+      let depth = req.body['depth']
       if (typeof length == 'undefined') {
         res.status(403)
         res.json({
@@ -632,8 +632,8 @@ module.exports = function (app) {
       }
 
       if (depth && length) {
-        var height = configuration.bowHeight
-        var heightFromBow = depth
+        let height = configuration.bowHeight
+        let heightFromBow = depth
         if (typeof height !== 'undefined' && height > 0) {
           heightFromBow += height
         }
@@ -645,12 +645,12 @@ module.exports = function (app) {
       app.debug('depth: ' + depth)
       app.debug('maxRadius: ' + maxRadius)
 
-      var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+      let gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
       if (typeof gps_dist != 'undefined') {
         maxRadius += gps_dist
       }
 
-      var fudge = configuration.fudge
+      let fudge = configuration.fudge
       if (typeof fudge !== 'undefined' && fudge > 0) {
         app.debug('fudge radius by ' + fudge)
         maxRadius += fudge
@@ -658,7 +658,7 @@ module.exports = function (app) {
 
       app.debug('set anchor radius: ' + maxRadius)
 
-      var delta = getAnchorDelta(
+      let delta = getAnchorDelta(
         app,
         null,
         state.position,
@@ -760,11 +760,10 @@ module.exports = function (app) {
 
     router.post('/setManualAnchor', (req, res) => {
       app.debug('set manual anchor')
-      var depth = req.body['anchorDepth']
-      var rode = req.body['rodeLength']
-      var result = setManualAnchor(depth, rode)
-      res.status(result.statusCode)
-      res.json(result.message)
+      let depth = req.body['anchorDepth']
+      let rode = req.body['rodeLength']
+      let result = setManualAnchor(depth, rode)
+      res.status(result.statusCode).json(result)
     })
 
     router.get('/getTrack', (req, res) => {
@@ -793,9 +792,8 @@ module.exports = function (app) {
   }
 
   function setManualAnchor(depth, rode) {
-    var position = app.getSelfPath('navigation.position')
-    if (position.value) position = position.value
-    if (typeof position == 'undefined') {
+    let position = app.getSelfPath('navigation.position.value')
+    if (!position) {
       app.debug('no position available')
       return {
         statusCode: 403,
@@ -804,11 +802,11 @@ module.exports = function (app) {
       }
     }
 
-    var heading = app.getSelfPath('navigation.headingTrue.value')
+    let heading = app.getSelfPath('navigation.headingTrue.value')
 
-    if (typeof heading == 'undefined') {
+    if (typeof heading === 'undefined') {
       heading = app.getSelfPath('navigation.headingMagnetic.value')
-      if (typeof heading == 'undefined') {
+      if (typeof heading === 'undefined') {
         return {
           statusCode: 403,
           state: 'FAILED',
@@ -819,45 +817,68 @@ module.exports = function (app) {
 
     app.debug('anchor rode: ' + rode + ' depth: ' + depth)
 
-    var maxRadius = rode
-
-    if (depth == 0) {
-      var sd = app.getSelfPath('environment.depth.belowSurface.value')
-      if (typeof sd != 'undefined') {
-        depth = sd
+    rode = parseInt(rode) ?? undefined
+    if (typeof rode !== 'number' || isNaN(rode)) {
+      return {
+        statusCode: 403,
+        state: 'FAILED',
+        message: 'invalid rode value'
       }
     }
 
-    if (depth != 0 && rode != 0) {
-      var height = configuration.bowHeight
-      var heightFromBow = depth
+    let maxRadius = rode
+
+    if (typeof depth === 'undefined') {
+      let sd = app.getSelfPath('environment.depth.belowSurface.value')
+      if (typeof sd === 'number' && !isNaN(sd)) {
+        depth = sd
+      }
+      else {
+        return {
+          statusCode: 403,
+          state: 'FAILED',
+          message: 'no depth available'
+        }
+      }
+    }
+
+    if (depth !== 0 && rode !== 0) {
+      let height = configuration.bowHeight
+      let heightFromBow = depth
       if (typeof height !== 'undefined' && height > 0) {
         heightFromBow += height
       }
       //maxRadius = (depth * depth) + (rode * rode)
-      maxRadius = rode * rode - heightFromBow * heightFromBow
+      maxRadius = Math.abs(rode * rode - heightFromBow * heightFromBow)
       maxRadius = Math.sqrt(maxRadius)
+      if (typeof maxRadius !== 'number' || isNaN(maxRadius)) {
+        return {
+          statusCode: 403,
+          state: 'FAILED',
+          message: 'invalid maxRadius value'
+        }
+      }
     }
 
     app.debug('depth: ' + depth)
     app.debug('heading: ' + heading)
     app.debug('maxRadius: ' + maxRadius)
 
-    var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+    let gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
     if (typeof gps_dist != 'undefined') {
       maxRadius += gps_dist
     }
 
-    var curRadius = maxRadius
-    var fudge = configuration.fudge
+    let curRadius = maxRadius
+    let fudge = configuration.fudge
     if (typeof fudge !== 'undefined' && fudge > 0) {
       app.debug('fudge radius by ' + fudge)
       maxRadius += fudge
     }
 
-    var newposition = calc_position_from(app, position, heading, curRadius)
+    let newposition = calc_position_from(app, position, heading, curRadius)
 
-    var delta = getAnchorDelta(
+    let delta = getAnchorDelta(
       app,
       position,
       newposition,
@@ -1082,7 +1103,7 @@ module.exports = function (app) {
       }
       if (typeof configuration.bowHeight !== 'undefined') {
         values.push({
-          path: 'design.bowAnchorHight',
+          path: 'design.bowAnchorHeight',
           value: configuration.bowHeight
         })
       }
@@ -1133,24 +1154,30 @@ module.exports = function (app) {
     app,
     plugin,
     radius,
-    possition,
+    position,
     anchor_position,
     rodeLength
   ) {
-    //app.debug("in checkPosition: " + possition.latitude + ',' + anchor_position.latitude)
+    app.debug("in checkPosition: " + position.latitude + ',' + anchor_position.latitude)
 
-    var meters = calc_distance(
-      possition.latitude,
-      possition.longitude,
+    if (
+      !position?.latitude || !position?.longitude ||
+      !anchor_position?.latitude || !anchor_position?.longitude) {
+      return
+    }
+
+    let meters = calc_distance(
+      position.latitude,
+      position.longitude,
       anchor_position.latitude,
       anchor_position.longitude
     )
 
     app.debug('distance: ' + meters + ', radius: ' + radius)
 
-    var delta = getAnchorDelta(
+    let delta = getAnchorDelta(
       app,
-      possition,
+      position,
       anchor_position,
       meters,
       radius,
@@ -1199,7 +1226,7 @@ module.exports = function (app) {
 
   function computeBowLocation(position, heading) {
     if (typeof heading != 'undefined') {
-      var gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+      let gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
       //app.debug('gps_dist: ' + gps_dist)
       if (typeof gps_dist != 'undefined') {
         position = calc_position_from(app, position, heading, gps_dist)
@@ -1215,60 +1242,62 @@ module.exports = function (app) {
     trueHeading
   ) {
     if (
-      vesselPosition &&
-      anchorPosition &&
-      typeof trueHeading !== 'undefined'
+      !vesselPosition?.latitude || !vesselPosition?.longitude ||
+      !anchorPosition?.latitude || !anchorPosition?.longitude ||
+      typeof trueHeading === 'undefined'
     ) {
-      let bowPosition = computeBowLocation(vesselPosition, trueHeading)
-      let bearing = degsToRad(
-        geolib.getRhumbLineBearing(bowPosition, anchorPosition)
-      )
-
-      /* there's got to be a better way?? */
-      let offset
-      if (bearing > Math.PI) {
-        offset = Math.PI * 2 - bearing
-      } else {
-        offset = -bearing
-      }
-
-      let zeroed = trueHeading + offset
-      let apparent
-      if (zeroed < Math.PI) {
-        apparent = -zeroed
-      } else {
-        apparent = zeroed
-        if (apparent > Math.PI) {
-          apparent = Math.PI * 2 - apparent
-        }
-      }
-
-      /*
-      app.debug(
-        'apparent ' +
-          radsToDeg(trueHeading) +
-          ', ' +
-          radsToDeg(bearing) +
-          ', ' +
-          apparent +
-          ', ' +
-          radsToDeg(apparent)
-          )
-          */
-
-      app.handleMessage(plugin.id, {
-        updates: [
-          {
-            values: [
-              {
-                path: 'navigation.anchor.apparentBearing',
-                value: apparent
-              }
-            ]
-          }
-        ]
-      })
+      return
     }
+
+    let bowPosition = computeBowLocation(vesselPosition, trueHeading)
+    let bearing = degsToRad(
+      geolib.getRhumbLineBearing(bowPosition, anchorPosition)
+    )
+
+    /* there's got to be a better way?? */
+    let offset
+    if (bearing > Math.PI) {
+      offset = Math.PI * 2 - bearing
+    } else {
+      offset = -bearing
+    }
+
+    let zeroed = trueHeading + offset
+    let apparent
+    if (zeroed < Math.PI) {
+      apparent = -zeroed
+    } else {
+      apparent = zeroed
+      if (apparent > Math.PI) {
+        apparent = Math.PI * 2 - apparent
+      }
+    }
+
+    /*
+    app.debug(
+      'apparent ' +
+        radsToDeg(trueHeading) +
+        ', ' +
+        radsToDeg(bearing) +
+        ', ' +
+        apparent +
+        ', ' +
+        radsToDeg(apparent)
+        )
+        */
+
+    app.handleMessage(plugin.id, {
+      updates: [
+        {
+          values: [
+            {
+              path: 'navigation.anchor.apparentBearing',
+              value: apparent
+            }
+          ]
+        }
+      ]
+    })
   }
 
   function sendAnchorAlarm(alarmState, app, plugin, msg) {
