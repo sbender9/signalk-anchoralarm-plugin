@@ -1103,6 +1103,10 @@ module.exports = function (app) {
       }
       if (typeof configuration.bowHeight !== 'undefined') {
         values.push({
+          path: 'design.bowAnchorHight', // Deprecated
+          value: configuration.bowHeight
+        })
+        values.push({
           path: 'design.bowAnchorHeight',
           value: configuration.bowHeight
         })
