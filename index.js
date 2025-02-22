@@ -807,6 +807,7 @@ module.exports = function (app) {
     if (typeof heading === 'undefined') {
       heading = app.getSelfPath('navigation.headingMagnetic.value')
       if (typeof heading === 'undefined') {
+        app.debug('no heading available')
         return {
           statusCode: 403,
           state: 'FAILED',
@@ -819,6 +820,7 @@ module.exports = function (app) {
 
     rode = parseInt(rode) ?? undefined
     if (typeof rode !== 'number' || isNaN(rode)) {
+      app.debug('invalid rode value')
       return {
         statusCode: 403,
         state: 'FAILED',
@@ -834,6 +836,7 @@ module.exports = function (app) {
         depth = sd
       }
       else {
+        app.debug('no depth available')
         return {
           statusCode: 403,
           state: 'FAILED',
@@ -852,6 +855,7 @@ module.exports = function (app) {
       maxRadius = Math.abs(rode * rode - heightFromBow * heightFromBow)
       maxRadius = Math.sqrt(maxRadius)
       if (typeof maxRadius !== 'number' || isNaN(maxRadius)) {
+        app.debug('invalid maxRadius value')
         return {
           statusCode: 403,
           state: 'FAILED',
