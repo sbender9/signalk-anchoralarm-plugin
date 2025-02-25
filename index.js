@@ -25,10 +25,12 @@ module.exports = function (app) {
   var prev_anchorState = false
   let onStop = []
   var positionInterval
+  var positionAlarmSent = false
   var configuration
   var delayStartTime
   var lastTrueHeading
   var lastPosition
+  var lastPositionTime
   var saveOptionsTimer
   var track = []
   var incompleteAnchorTimer
@@ -254,20 +256,34 @@ module.exports = function (app) {
     var delta = getAnchorDelta(app, null, null, null, null, false, null, null)
     app.handleMessage(plugin.id, delta)
     stopWatchingPosition()
-    if (positionInterval) {
-      clearInterval(positionInterval)
-      positionInterval = null
-    }
   }
 
   function stopWatchingPosition() {
     onStop.forEach((f) => f())
     onStop = []
     track = []
+    if (positionInterval) {
+      clearInterval(positionInterval)
+      positionInterval = null
+    }
   }
 
   function startWatchingPosistion() {
     if (onStop.length > 0) return
+
+    if ( configuration.noPositionAlarmTime != 0 ) {
+      positionInterval = setInterval(() => {
+        app.debug('checking last position...')
+        if ( !lastPositionTime || Date.now() - lastPositionTime > configuration.noPositionAlarmTime * 1000 ) {
+          positionAlarmSent = true
+          sendAnchorAlarm(configuration.state, app, plugin, 'No position received')
+        } else if ( alarm_sent == null && positionAlarmSent ) {
+          var delta = getAnchorAlarmDelta(app, "normal")
+          app.handleMessage(plugin.id, delta)
+          positionAlarmSent = false
+        }
+      }, (configuration.noPositionAlarmTime/2.0) * 1000)
+    }
 
     track = []
     app.subscriptionmanager.subscribe(
@@ -323,6 +339,7 @@ module.exports = function (app) {
         if (position) {
           var anchorState
           lastPosition = position
+          lastPositionTime = Date.now()
           anchorState = checkPosition(
             app,
             plugin,
@@ -394,12 +411,7 @@ module.exports = function (app) {
     configuration['on'] = false
 
     stopWatchingPosition()
-
-    if (positionInterval) {
-      clearInterval(positionInterval)
-      positionInterval = null
-    }
-
+    
     app.handleMessage(plugin.id, {
       updates: [
         {
