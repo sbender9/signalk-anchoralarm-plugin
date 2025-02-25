@@ -959,7 +959,7 @@ module.exports = function (app) {
       noPositionAlarmTime: {
         type: 'number',
         title:
-          'Send a notification if no position is received for the given number of seconds',
+          'Send a notification if no position is received for the given number of seconds (0 to disable)',
         default: 10
       },
       fudge: {
