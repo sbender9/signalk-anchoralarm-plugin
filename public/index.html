@@ -219,7 +219,7 @@
       radius = Math.round(radius*10)/10;
       $('#radiusValue').html(radius);
     });
-    $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+    $.get('/signalk/v1/api/vessels/self/environment/depth/belowSurface/value', (depth) => {
       depth = Math.round(depth*10)/10;
       $('#depthValue').html(depth);
     }).fail(() => {
@@ -385,7 +385,7 @@
     $.post('/plugins/anchoralarm/dropAnchor', () => {
       $.get('/signalk/v1/api/vessels/self/navigation', (data) => {
         let position = data.position.value;
-        $.get('/signalk/v1/api/vessels/self/environment/depth/belowTransducer/value', (depth) => {
+        $.get('/signalk/v1/api/vessels/self/environment/depth/belowSurface/value', (depth) => {
           let radius = Math.round(parseInt(depth)*5);
           $.post('/plugins/anchoralarm/setRadius', { radius: radius }, () => {
             dropAnchor(position, radius);
