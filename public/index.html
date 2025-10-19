@@ -353,9 +353,26 @@
     "OpenSeaMaps": openSeaMapLayer,
   };	
 
-  var layerControl = L.control.layers(baseMaps, overlayMaps, {
-    position: 'bottomright'
-  }).addTo(map);
+  new Promise((resolve, reject) => {
+    $.getJSON('/plugins/anchoralarm/getCustomMap', (mapURL) => {
+      customLayer = L.tileLayer( mapURL.url, {
+        attribution: 'Custom Map',
+        maxNativeZoom: mapURL.maxNativeZoom,
+        maxZoom: 19
+      });
+      if(mapURL.url) {
+        baseMaps["Custom"] = customLayer;
+      }
+      var layerControl = L.control.layers(baseMaps, overlayMaps, {
+        position: 'bottomright'
+      }).addTo(map);
+    }).fail((error) => {
+      var layerControl = L.control.layers(baseMaps, overlayMaps, {
+        position: 'bottomright'
+      }).addTo(map);
+    });
+  });
+
   // On smaller screens for phones, layer control will be displayed in the center
   // This also supports a future app version of the plugin
   if (/iOS|iPhone|iPod|Android/.test(navigator.userAgent)) {
