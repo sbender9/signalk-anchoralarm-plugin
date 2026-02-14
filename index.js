@@ -1178,7 +1178,7 @@ module.exports = function (app) {
     anchor_position,
     rodeLength
   ) {
-    app.debug("in checkPosition: " + position.latitude + ',' + anchor_position.latitude)
+    app.debug("in checkPosition: (" + position.latitude + "," + position.longitude + "), Anchor at: (" + anchor_position.latitude + "," + anchor_position.longitude + ")")
 
     if (
       !position?.latitude || !position?.longitude ||
