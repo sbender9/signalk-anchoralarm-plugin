@@ -781,6 +781,10 @@ module.exports = function (app) {
     router.get('/getTrack', (req, res) => {
       res.json(track)
     })
+
+    router.get('/getCustomMap', (req, res) => {
+      res.json({ url: configuration.customMapDataURL, maxNativeZoom: configuration.customMapMaxNativeZoom })
+    })
   }
 
   function calculateRodeLength(vesselPosition) {
@@ -989,6 +993,20 @@ module.exports = function (app) {
         description:
           'An alarm will be sent after this many minutes if the anchoring process has not been completed (0 to disable)',
         default: 10
+      },
+      customMapDataURL: {
+        type: 'string',
+        title: 'Custom Map Data URL',
+        description:
+          'eg. http://localhost:3000/signalk/chart-tiles/skMBTiles/{z}/{x}/{y}.png',
+        default: ''
+      },
+      customMapMaxNativeZoom: {
+        type: 'number',
+        title: 'Custom Map Max Zoom Level',
+        description:
+          'Maximum zoom level of custom chart data (optional, supports overzoom)',
+        default: 19
       }
     }
   }
