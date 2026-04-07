@@ -1,79 +1,194 @@
-# signalk-anchoralarm-plugin
+# Signal K Anchor Alarm Plugin
 
-[![Greenkeeper badge](https://badges.greenkeeper.io/sbender9/signalk-anchoralarm-plugin.svg)](https://greenkeeper.io/)
+A Signal K server plugin that monitors vessel position for anchor drift and provides comprehensive anchor management functionality.
 
-SignalK Node Server Anchor Alarm Plugin
+## Features
 
-Then use WilhelmSK to set the alarm (https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8)
+- **Real-time anchor drift monitoring** with configurable alarm radius
+- **Automatic radius calculation** based on rode length and depth
+- **Web-based interface** with interactive map showing vessel position, anchor position, and alarm radius
+- **REST API** for programmatic control
+- **Signal K PUT handlers** for standardized integration
+- **Position tracking** and history
+- **Multiple alarm types** including incomplete anchor alarms and no-position warnings
+- **GPS bow offset compensation** for accurate anchor position calculation
 
-If not using WilhelmSK, you can setup the alarm using the WebApp or the REST API.
+## Installation
 
-## Web App
+Install through the Signal K app store or via npm:
 
-Point your Web Browser to http://[signalk-server-ip-address]:[port-number]/signalk-anchoralarm-plugin/
-
-If you wish to have the satellite or openseamaps view enabled by default add the following
-
-| OpenStreetMap | Satellite | OpenSeaMap | Url String |
-| ------------- | --------- | ---------- | -----------|
-| X | - | - | / |
-| X | - | X | /?openseamap |
-| - | X | - | /?satellite |
-| - | X | X | /?satellite&openseamap |
-
-Note that you must be logged in to SignalK UI for this to work.
-
-When a depth transducer is configured the plugin will default to an anchor alarm of Dx5. If no depth transducer can be found the web app will prompt for the anchor alarm radius when the anchor is droped.
-
-## REST API
-
-### When you drop the anchor in the water, Call dropAnchor:
-
-
-```
-curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:3000/plugins/anchoralarm/dropAnchor
+```bash
+npm install signalk-anchoralarm-plugin
 ```
 
-### After you have let the anchor rode out, call setRadius. This will calculate and set the alarm radius based on the vessels current position.
+## Configuration
 
+Configure the plugin through the Signal K server admin interface or by editing the plugin configuration:
+
+- **Alarm Delay**: Time in seconds before sending an alarm after leaving the radius (default: 0)
+- **Warning Percentage**: Percentage of alarm radius to trigger a warning (0 to disable)
+- **No Position Alarm**: Time in seconds to wait before alarming if no GPS position received
+- **Fudge Factor**: Additional meters added to calculated radius for GPS accuracy
+- **Bow Height**: Height of bow from water in meters (for rode length calculations)
+- **Alarm State**: Notification severity level (`alert`, `warn`, `alarm`, `emergency`)
+- **Incomplete Anchor Alarm**: Minutes before warning if anchoring process not completed
+
+## Usage
+
+### Web Interface
+
+Access the interactive web application at:
 ```
-curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:3000/plugins/anchoralarm/setRadius
-```
-
-### Alternately, after you have let the anchor rode out, call setRodeLength. This will calculate and set the alarm radius based on rode length, depth and bow height.
-
-```
-curl -X POST -H "Content-Type: application/json" -d '{"length": 30}' http://localhost:3000/plugins/anchoralarm/setRodeLength
-```
-
-
-### You can adjust the radius (in meters) via:
-
-```
-curl -X POST -H "Content-Type: application/json" -d '{"radius": 30}' http://localhost:3000/plugins/anchoralarm/setRadius
-```
-
-### When you raise the anchor, call raiseAnchor.
-
-```
-curl -X POST -H "Content-Type: application/json" -d '{}' http://localhost:3000/plugins/anchoralarm/raiseAnchor
+http://[signalk-server-ip]:[port]/signalk-anchoralarm-plugin/
 ```
 
-### If you need to set the anchor position after you have already let the rode out, it can esitmate the andchor position based on heading, depth and rode length. If "anchorDepth" is left out, then the current depthFromSurface will be used if available.
+Optional URL parameters for map display:
+- `/?openseamap` - Enable OpenSeaMap overlay
+- `/?satellite` - Use satellite imagery
+- `/?satellite&openseamap` - Both satellite and OpenSeaMap
 
+**Note**: You must be logged into the Signal K admin interface for the web app to function.
+
+### REST API
+
+The plugin provides several REST endpoints for anchor management:
+
+#### Drop Anchor
+Sets the anchor position based on current vessel position (adjusted for bow GPS offset).
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"radius": 25}' \
+  http://localhost:3000/plugins/anchoralarm/dropAnchor
 ```
-curl -X POST -H "Content-Type: application/json" -d '{"anchorDepth": 3, "rodeLength":30}' http://localhost:3000/plugins/anchoralarm/setManualAnchor
+
+#### Set Alarm Radius
+Calculate radius based on current distance from anchor, or set a specific radius.
+```bash
+# Auto-calculate from current position
+curl -X POST -H "Content-Type: application/json" \
+  -d '{}' \
+  http://localhost:3000/plugins/anchoralarm/setRadius
+
+# Set specific radius in meters
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"radius": 30}' \
+  http://localhost:3000/plugins/anchoralarm/setRadius
 ```
 
-## Action Handlers
+#### Set Rode Length
+Calculate alarm radius from anchor rode length and depth.
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"length": 50}' \
+  http://localhost:3000/plugins/anchoralarm/setRodeLength
+```
+The plugin automatically calculates the maximum swing radius using:
+- Rode length
+- Water depth (from depth sensor or manual input)
+- Bow height configuration
+- GPS antenna offset from bow
 
-The plugin registers action handlers that allow other parts of the Signal K server (such as apps or other plugins) to control the anchor alarm through PUT requests to Signal K paths. These handlers provide a standardized Signal K interface for anchor operations.
+#### Set Manual Anchor Position
+Estimate anchor position based on heading, depth, and rode length.
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"anchorDepth": 4.5, "rodeLength": 45}' \
+  http://localhost:3000/plugins/anchoralarm/setManualAnchor
+```
 
-### Available Action Handlers
+#### Raise Anchor
+Clear anchor position and disable alarm monitoring.
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{}' \
+  http://localhost:3000/plugins/anchoralarm/raiseAnchor
+```
 
-#### navigation.anchor.position
-- **Path**: `vessels.self.navigation.anchor.position`
-- **Purpose**: Set or clear the anchor position
+#### Set Anchor Position
+Manually set the anchor position coordinates.
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"position": {"latitude": 37.8267, "longitude": -122.4233}}' \
+  http://localhost:3000/plugins/anchoralarm/setAnchorPosition
+```
+
+#### Get Position Track
+Retrieve vessel position history (up to 24 hours).
+```bash
+curl http://localhost:3000/plugins/anchoralarm/getTrack
+```
+
+### Signal K PUT Handlers
+
+The plugin registers PUT handlers for standard Signal K paths:
+
+#### Set Anchor Position
+```javascript
+// Set anchor position
+PUT vessels.self.navigation.anchor.position
+{
+  "latitude": 37.8267,
+  "longitude": -122.4233,
+  "altitude": -4.5  // depth in meters (negative)
+}
+
+// Clear anchor position
+PUT vessels.self.navigation.anchor.position
+null
+```
+
+#### Set Maximum Radius
+```javascript
+PUT vessels.self.navigation.anchor.maxRadius
+25  // radius in meters
+```
+
+#### Set Rode Length
+```javascript
+PUT vessels.self.navigation.anchor.rodeLength
+50  // length in meters
+```
+
+## Signal K Data Published
+
+The plugin publishes the following Signal K data paths:
+
+- `navigation.anchor.position` - Anchor position (lat/lon/alt)
+- `navigation.anchor.maxRadius` - Maximum alarm radius in meters
+- `navigation.anchor.bearingTrue` - True bearing from vessel to anchor
+- `navigation.anchor.apparentBearing` - Apparent bearing accounting for vessel heading
+- `navigation.anchor.rodeLength` - Anchor rode length in meters
+- `navigation.anchor.fudgeFactor` - Additional radius for GPS accuracy
+- `navigation.anchor.distanceFromBow` - Distance from bow to anchor
+
+## Notifications
+
+The plugin sends Signal K notifications for various alarm conditions:
+
+- **Anchor drag alarm** - When vessel exceeds the configured radius
+- **Position warning** - When approaching the warning percentage of radius
+- **No position alarm** - When GPS position is not received within configured time
+- **Incomplete anchor alarm** - When anchoring process isn't completed within configured time
+
+## Integration
+
+### WilhelmSK
+The plugin is fully compatible with [WilhelmSK](https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8) for setting and monitoring anchor alarms.
+
+### Other Signal K Apps
+Any Signal K client can monitor anchor status through the standard Signal K paths and use the PUT handlers for control.
+
+## Technical Details
+
+- Monitors position at 1-second intervals when anchor alarm is active
+- Maintains 24-hour position track history (1-minute resolution)
+- Automatically persists anchor state across server restarts
+- Calculates accurate anchor swing radius accounting for water depth and rode geometry
+- Supports GPS antenna bow offset compensation for precise anchor positioning
+
+## License
+
+ISC License - see LICENSE file for details.
 - **Value**: Position object with `latitude`, `longitude`, and optionally `altitude` properties, or `null` to raise the anchor
 - **Behavior**: 
   - When a position is provided, sets the anchor position and starts monitoring if a radius is configured
@@ -155,14 +270,14 @@ curl -X PUT -H "Content-Type: application/json" \
   http://localhost:3000/signalk/v1/api/vessels/self/navigation/anchor/rodeLength
 ```
 
-### Using Action Handlers
+### Using PUT
 
-These action handlers can be triggered by:
+These put handlers can be triggered by:
 - Signal K apps (like WilhelmSK)
 - Other plugins
 - Direct HTTP PUT requests to the Signal K server's REST API
 - WebSocket PUT messages
 
-The handlers provide a more standardized interface compared to the plugin-specific REST endpoints, following Signal K conventions for data paths and action handling.
+The handlers provide a more standardized interface compared to the plugin-specific REST endpoints, following Signal K conventions for data paths and PUT handling.
 
 
