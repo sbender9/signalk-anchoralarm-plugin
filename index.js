@@ -16,6 +16,7 @@
 const path = require('path')
 const fs = require('fs')
 const geolib = require('geolib')
+const { drop } = require('lodash')
 
 const subscribrPeriod = 1000
 
@@ -23,7 +24,8 @@ module.exports = function (app) {
   var plugin = {}
   var alarm_sent = false
   var prev_anchorState = false
-  let onStop = []
+  let positionStop = []
+  let rodeStop = []
   var positionInterval
   var positionAlarmSent = false
   var configuration
@@ -37,6 +39,12 @@ module.exports = function (app) {
   var sentIncompleteAnchorAlarm
   var statePath
   var state
+  var lastRodeValue
+  var rodeAutomationEnabled = false
+  var rodeStabilizationTimer = null
+  var anchoringInProgress = false
+  var rodeStabilizationValue = null
+  var rodeStabilizationStartTime = null
 
   plugin.start = function (props) {
     configuration = props
@@ -76,6 +84,14 @@ module.exports = function (app) {
         typeof state.radius != 'undefined'
       ) {
         startWatchingPosistion()
+      }
+
+      // Initialize rode counter automation
+      if (configuration.enableRodeAutomation && configuration.rodeCounterPath) {
+        rodeAutomationEnabled = true
+        lastRodeValue = app.getSelfPath(configuration.rodeCounterPath + '.value')
+        app.debug('Rode automation enabled, current value: ' + lastRodeValue)
+        startRodeCounterSubscription()
       }
 
       if (app.registerActionHandler) {
@@ -248,6 +264,10 @@ module.exports = function (app) {
   }
 
   plugin.stop = function () {
+    positionStop.forEach((f) => f())
+    positionStop = []
+    rodeStop.forEach((f) => f())
+    rodeStop = []
     if (alarm_sent) {
       var alarmDelta = getAnchorAlarmDelta(app, 'normal')
       app.handleMessage(plugin.id, alarmDelta)
@@ -256,11 +276,12 @@ module.exports = function (app) {
     var delta = getAnchorDelta(app, null, null, null, null, false, null, null)
     app.handleMessage(plugin.id, delta)
     stopWatchingPosition()
+    stopRodeCounterSubscription()
   }
 
   function stopWatchingPosition() {
-    onStop.forEach((f) => f())
-    onStop = []
+    positionStop.forEach((f) => f())
+    positionStop = []
     track = []
     if (positionInterval) {
       clearInterval(positionInterval)
@@ -269,7 +290,7 @@ module.exports = function (app) {
   }
 
   function startWatchingPosistion() {
-    if (onStop.length > 0) return
+    if ( positionStop.length > 0 ) return
 
     if ( configuration.noPositionAlarmTime != 0 ) {
       positionInterval = setInterval(() => {
@@ -300,7 +321,7 @@ module.exports = function (app) {
           }
         ]
       },
-      onStop,
+      positionStop,
       (err) => {
         app.error(err)
         app.setProviderError(err)
@@ -334,6 +355,11 @@ module.exports = function (app) {
               })
             }
           })
+        }
+
+        // Handle rode counter automation
+        if (rodeAutomationEnabled && typeof rodeValue !== 'undefined') {
+          handleRodeCounterChange(rodeValue)
         }
 
         if (position) {
@@ -389,6 +415,169 @@ module.exports = function (app) {
     }
   }
 
+  function startRodeCounterSubscription() {
+    if (!rodeAutomationEnabled || !configuration.rodeCounterPath || rodeStop.length > 0) {
+      return
+    }
+
+    app.debug('Starting rode counter subscription for path: ' + configuration.rodeCounterPath)
+    
+    app.subscriptionmanager.subscribe(
+      {
+        context: 'vessels.self',
+        subscribe: [
+          {
+            path: configuration.rodeCounterPath,
+            period: 100
+          }
+        ]
+      },
+      rodeStop,
+      (err) => {
+        app.error('Rode counter subscription error: ' + err)
+      },
+      (delta) => {
+        if (delta.updates) {
+          delta.updates.forEach((update) => {
+            if (update.values) {
+              update.values.forEach((vp) => {
+                if (vp.path === configuration.rodeCounterPath) {
+                  handleRodeCounterChange(vp.value)
+                }
+              })
+            }
+          })
+        }
+      }
+    )
+  }
+
+  function stopRodeCounterSubscription() {
+    if (rodeSubscription) {
+      app.debug('Stopping rode counter subscription')
+      rodeSubscription()
+      rodeSubscription = null
+    }
+    clearRodeStabilizationTimer()
+  }
+
+  function clearRodeStabilizationTimer() {
+    if (rodeStabilizationTimer) {
+      clearTimeout(rodeStabilizationTimer)
+      rodeStabilizationTimer = null
+    }
+    rodeStabilizationValue = null
+    rodeStabilizationStartTime = null
+  }
+
+  function handleRodeCounterChange(rodeValue) {
+    if (!rodeAutomationEnabled || !configuration.rodeThreshold) {
+      return
+    }
+
+    const threshold = configuration.rodeThreshold
+    const wasDeployed = lastRodeValue >= threshold
+    const isDeployed = rodeValue >= threshold
+
+    app.debug(`Rode value changed: ${lastRodeValue} -> ${rodeValue}, threshold: ${threshold}`)
+
+    if (!wasDeployed && isDeployed) {
+      // Rode deployed beyond threshold - automatically set anchor position (but not radius yet)
+      app.debug('Rode deployed, automatically setting anchor position (waiting for stabilization)')
+      
+      const res = dropAnchor(undefined)
+      if (res) {
+        app.error('Failed to drop anchor automatically: ' + res)
+      } else {
+        // Set anchoring in progress flag so stabilization logic will run
+        anchoringInProgress = true
+        app.debug('Anchor position set, starting stabilization monitoring')
+      }
+      saveState()
+      
+    } else if (wasDeployed && !isDeployed) {
+      // Rode retrieved below threshold - automatically raise anchor
+      app.debug('Rode retrieved, automatically raising anchor')
+      clearRodeStabilizationTimer()
+      anchoringInProgress = false
+      raiseAnchor()
+    } else if (isDeployed && anchoringInProgress) {
+      // Rode is deployed and we're in anchoring process - check if it has stabilized
+      const stabilizationThreshold = 0.1 // meters
+      const stabilizationTime = (configuration.rodeStabilizationTime || 10) * 1000 // milliseconds
+      
+      if (rodeStabilizationValue === null) {
+        // First time checking for stabilization, set reference value
+        rodeStabilizationValue = rodeValue
+        rodeStabilizationStartTime = Date.now()
+        app.debug(`Starting rode stabilization tracking at ${rodeValue}m (timer: ${stabilizationTime/1000}s)`)
+        
+        // Capture the value in closure to avoid reference issues
+        const stabilizedValue = rodeStabilizationValue
+        rodeStabilizationTimer = setTimeout(() => {
+          app.debug(`Stabilization timer expired for value ${stabilizedValue}m, completing anchoring`)
+          completeAnchoring(stabilizedValue)
+        }, stabilizationTime)
+        
+      } else if (Math.abs(rodeValue - rodeStabilizationValue) <= stabilizationThreshold) {
+        // Value is still within stable range - check if enough time has passed
+        const timeInStableRange = Date.now() - rodeStabilizationStartTime
+        app.debug(`Rode stable at ${rodeValue}m for ${timeInStableRange/1000}s (need ${stabilizationTime/1000}s)`)
+        
+        // Timer is still running and will complete when time is reached
+        
+      } else {
+        // Rode moved outside stable range - reset stabilization tracking
+        app.debug(`Rode moved outside stable range: ${rodeStabilizationValue} -> ${rodeValue}, restarting stabilization`)
+        clearRodeStabilizationTimer()
+        
+        // Start new stabilization period with current value
+        rodeStabilizationValue = rodeValue
+        rodeStabilizationStartTime = Date.now()
+        
+        // Capture the value in closure to avoid reference issues  
+        const stabilizedValue = rodeStabilizationValue
+        rodeStabilizationTimer = setTimeout(() => {
+          app.debug(`Stabilization timer expired (after reset) for value ${stabilizedValue}m, completing anchoring`)
+          completeAnchoring(stabilizedValue)
+        }, stabilizationTime)
+      }
+    }
+
+    lastRodeValue = rodeValue
+  }
+
+  function completeAnchoring(finalRodeLength) {
+    if (!anchoringInProgress || !state.position) {
+      app.debug('completeAnchoring called but anchoring not in progress or no anchor position')
+      return
+    }
+
+    app.debug('Completing anchoring process with rode length: ' + finalRodeLength + 'm')
+    
+    // Update the rode length to the final stabilized value
+    state.rodeLength = finalRodeLength
+    
+    // Call setRadius with undefined to auto-calculate based on current position
+    let error = setRadius(undefined)
+    if (error) {
+      app.error('Failed to set radius automatically: ' + error)
+      return
+    }
+
+    // Mark anchoring as complete
+    anchoringInProgress = false
+
+    // Clear incomplete anchor alarm since we've completed the process
+    clearIncompleteAlarm()
+    
+    // Clear stabilization tracking
+    clearRodeStabilizationTimer()
+    
+    saveState()
+    app.debug('Anchoring process completed automatically with radius: ' + state.radius + 'm')
+  }
+
   function raiseAnchor() {
     app.debug('raise anchor')
 
@@ -396,6 +585,9 @@ module.exports = function (app) {
     app.handleMessage(plugin.id, delta)
 
     clearIncompleteAlarm()
+    clearRodeStabilizationTimer()
+    anchoringInProgress = false
+    
     if (alarm_sent) {
       var alarmDelta = getAnchorAlarmDelta(app, 'normal')
       app.handleMessage(plugin.id, alarmDelta)
@@ -432,20 +624,15 @@ module.exports = function (app) {
     saveState()
   }
 
-  plugin.registerWithRouter = function (router) {
-    router.post('/dropAnchor', (req, res) => {
-      var vesselPosition = app.getSelfPath('navigation.position')
+  function dropAnchor(radius) {
+     var vesselPosition = app.getSelfPath('navigation.position')
       if (vesselPosition && vesselPosition.value)
         vesselPosition = vesselPosition.value
 
       if (typeof vesselPosition == 'undefined') {
         app.debug('no position available')
-        res.status(403)
-        res.json({
-          statusCode: 403,
-          state: 'FAILED',
-          message: 'no position available'
-        })
+        
+        return 'no position available'
       } else {
         let position = computeBowLocation(
           vesselPosition,
@@ -458,7 +645,6 @@ module.exports = function (app) {
             ' ' +
             position.longitude
         )
-        var radius = req.body['radius']
         if (typeof radius == 'undefined') {
           radius = null
         }
@@ -512,48 +698,23 @@ module.exports = function (app) {
 
         startWatchingPosistion()
 
-        try {
-          saveState()
-          res.json({
-            statusCode: 200,
-            state: 'COMPLETED'
-          })
-        } catch (err) {
-          app.error(err)
-          res.status(500)
-          res.json({
-            statusCode: 500,
-            state: 'FAILED',
-            message: "can't save config"
-          })
-        }
+        return undefined
       }
-    })
+  }
 
-    router.post('/setRadius', (req, res) => {
-      let position = app.getSelfPath('navigation.position')
+  function setRadius(radius) {
+     let position = app.getSelfPath('navigation.position')
       if (position.value) position = position.value
       if (typeof position == 'undefined') {
         app.debug('no position available')
-        res.status(403)
-        res.json({
-          statusCode: 403,
-          state: 'FAILED',
-          message: 'no position available'
-        })
+        return 'no position available'
       } else {
         if (typeof state.position == 'undefined') {
-          res.status(403)
-          res.json({
-            statusCode: 403,
-            state: 'FAILED',
-            message: 'the anchor has not been dropped'
-          })
-          return
+          return 'the anchor has not been dropped'
         }
 
         clearIncompleteAlarm()
-        var radius = req.body['radius']
+        
         if (typeof radius == 'undefined') {
           app.debug('state: %o', state)
           radius = calc_distance(
@@ -592,21 +753,67 @@ module.exports = function (app) {
         state.radius = radius
         configuration['radius'] = radius
 
-        try {
-          saveState()
-          res.json({
-            statusCode: 200,
-            state: 'COMPLETED'
-          })
-        } catch (err) {
-          app.error(err)
-          res.status(500)
-          res.json({
-            statusCode: 500,
-            state: 'FAILED',
-            message: "can't save config"
-          })
-        }
+        return undefined
+      }
+  }
+
+  plugin.registerWithRouter = function (router) {
+    router.post('/dropAnchor', (req, res) => {
+      let error = dropAnchor(req.body['radius'])
+      if (error) {
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: error
+        })
+        return 
+      }
+
+      try {
+        saveState()
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
+      } catch (err) {
+        app.error(err)
+        res.status(500)
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
+      }
+    })
+
+    router.post('/setRadius', (req, res) => {
+      let error = setRadius(req.body['radius'])
+
+      if (error) {
+        res.status(403)
+        res.json({
+          statusCode: 403,
+          state: 'FAILED',
+          message: error
+        })
+        return
+      } 
+
+      try {
+        saveState()
+        res.json({
+          statusCode: 200,
+          state: 'COMPLETED'
+        })
+      } catch (err) {
+        app.error(err)
+        res.status(500)
+        res.json({
+          statusCode: 500,
+          state: 'FAILED',
+          message: "can't save config"
+        })
       }
     })
 
@@ -988,6 +1195,30 @@ module.exports = function (app) {
         title: 'Incomplete Anchor Alarm Time',
         description:
           'An alarm will be sent after this many minutes if the anchoring process has not been completed (0 to disable)',
+        default: 10
+      },
+      enableRodeAutomation: {
+        type: 'boolean',
+        title: 'Enable Rode Counter Automation',
+        description: 'Automatically control anchor alarm based on rode counter value',
+        default: false
+      },
+      rodeCounterPath: {
+        type: 'string',
+        title: 'Rode Counter Signal K Path',
+        description: 'Signal K path for the rode counter value (e.g. "steering.rudderAngle" or custom path)',
+        default: 'navigation.anchor.rodeCounterLength'
+      },
+      rodeThreshold: {
+        type: 'number',
+        title: 'Rode Deployment Threshold (m)',
+        description: 'Minimum rode length in meters to automatically enable anchor alarm',
+        default: 5
+      },
+      rodeStabilizationTime: {
+        type: 'number',
+        title: 'Rode Stabilization Time (s)',
+        description: 'Time in seconds to wait after rode stops changing before completing anchoring process',
         default: 10
       }
     }
