@@ -16,7 +16,6 @@
 const path = require('path')
 const fs = require('fs')
 const geolib = require('geolib')
-const { drop } = require('lodash')
 
 const subscribrPeriod = 1000
 
@@ -357,11 +356,6 @@ module.exports = function (app) {
           })
         }
 
-        // Handle rode counter automation
-        if (rodeAutomationEnabled && typeof rodeValue !== 'undefined') {
-          handleRodeCounterChange(rodeValue)
-        }
-
         if (position) {
           var anchorState
           lastPosition = position
@@ -453,10 +447,10 @@ module.exports = function (app) {
   }
 
   function stopRodeCounterSubscription() {
-    if (rodeSubscription) {
+    if (rodeStop.length > 0) {
       app.debug('Stopping rode counter subscription')
-      rodeSubscription()
-      rodeSubscription = null
+      rodeStop.forEach((f) => f())
+      rodeStop = []
     }
     clearRodeStabilizationTimer()
   }
@@ -556,7 +550,7 @@ module.exports = function (app) {
     app.debug('Completing anchoring process with rode length: ' + finalRodeLength + 'm')
     
     // Update the rode length to the final stabilized value
-    state.rodeLength = finalRodeLength
+    //state.rodeLength = finalRodeLength
     
     // Call setRadius with undefined to auto-calculate based on current position
     let error = setRadius(undefined)
@@ -717,12 +711,16 @@ module.exports = function (app) {
         
         if (typeof radius == 'undefined') {
           app.debug('state: %o', state)
-          radius = calc_distance(
-            state.position.latitude,
-            state.position.longitude,
-            position.latitude,
-            position.longitude
-          )
+          if (configuration.useRodeCounterAsRadius) {
+            radius = getAlarmRadiusFromRodeLength(state.position.altitude * -1)
+          } else {  
+            radius = calc_distance(
+              state.position.latitude,
+              state.position.longitude,
+              position.latitude,
+              position.longitude
+            )
+          }
 
           var fudge = configuration.fudge
           if (typeof fudge !== 'undefined' && fudge > 0) {
@@ -1220,6 +1218,12 @@ module.exports = function (app) {
         title: 'Rode Stabilization Time (s)',
         description: 'Time in seconds to wait after rode stops changing before completing anchoring process',
         default: 10
+      },
+      useRodeCounterAsRadius: {
+        type: 'boolean',
+        title: 'Use Rode Counter for Alarm Radius',
+        description: 'Use the rode counter value to calculate the alarm radius',
+        default: false
       }
     }
   }
@@ -1417,12 +1421,20 @@ module.exports = function (app) {
       return
     }
 
-    let meters = calc_distance(
-      position.latitude,
-      position.longitude,
-      anchor_position.latitude,
-      anchor_position.longitude
-    )
+    let meters
+    
+    if (configuration.useRodeCounterAsRadius && (state.radius === undefined || state.radius === null)) {
+      // we are still letting the anchor out
+      app.debug('Calculating distance using rode length as radius')
+      meters = getAlarmRadiusFromRodeLength(anchor_position.altitude * -1)
+    } else {
+      meters = calc_distance(
+        position.latitude,
+        position.longitude,
+        anchor_position.latitude,
+        anchor_position.longitude
+      )
+    }
 
     app.debug('distance: ' + meters + ', radius: ' + radius)
 
@@ -1473,6 +1485,33 @@ module.exports = function (app) {
     }
 
     return null
+  }
+
+  function getAlarmRadiusFromRodeLength(depth) {
+    const rode = app.getSelfPath(configuration.rodeCounterPath + '.value')
+
+    let maxRadius = rode
+      
+    if (depth !== undefined) {
+      let height = configuration.bowHeight
+      let heightFromBow = depth
+      if (typeof height !== 'undefined' && height > 0) {
+        heightFromBow += height
+      }
+
+      maxRadius = Math.abs(rode * rode - heightFromBow * heightFromBow)
+      maxRadius = Math.sqrt(maxRadius)
+      if (typeof maxRadius !== 'number' || isNaN(maxRadius)) {
+        app.debug('invalid maxRadius value calculated from rode length')
+        return
+      }
+    }
+
+    let gps_dist = app.getSelfPath('sensors.gps.fromBow.value')
+    if (typeof gps_dist != 'undefined') {
+      maxRadius += gps_dist
+    }
+    return maxRadius
   }
 
   function computeBowLocation(position, heading) {
