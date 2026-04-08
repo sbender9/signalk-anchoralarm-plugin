@@ -16,7 +16,6 @@
 const path = require('path')
 const fs = require('fs')
 const geolib = require('geolib')
-const { drop } = require('lodash')
 
 const subscribrPeriod = 1000
 
@@ -51,7 +50,7 @@ module.exports = function (app) {
     try {
       statePath = path.join(app.getDataDirPath(), 'state.json')
 
-      if (fs.existsSync(statePath)) {
+      if (statePath != null && fs.existsSync(statePath)) {
         let stateString
         try {
           stateString = fs.readFileSync(statePath, 'utf8')
@@ -559,7 +558,7 @@ module.exports = function (app) {
     state.rodeLength = finalRodeLength
     
     // Call setRadius with undefined to auto-calculate based on current position
-    let error = setRadius(undefined)
+    let error = setRadius(finalRodeLength)
     if (error) {
       app.error('Failed to set radius automatically: ' + error)
       return
@@ -1220,6 +1219,12 @@ module.exports = function (app) {
         title: 'Rode Stabilization Time (s)',
         description: 'Time in seconds to wait after rode stops changing before completing anchoring process',
         default: 10
+      },
+      useRodeCounterAsRadius: {
+        type: 'boolean',
+        title: 'Use Rode Counter for Alarm Radius',
+        description: 'Use the rode counter value to calculate the alarm radius',
+        default: false
       }
     }
   }
