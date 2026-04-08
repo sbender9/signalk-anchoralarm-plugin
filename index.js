@@ -76,6 +76,8 @@ module.exports = function (app) {
         }
       }
 
+      sendMeta()
+
       if (
         typeof state.on != 'undefined' &&
         state.on &&
@@ -1596,6 +1598,66 @@ module.exports = function (app) {
       app.debug('send alarm: %j', delta)
       app.handleMessage(plugin.id, delta)
     }
+  }
+
+  function sendMeta() {
+    var delta = {
+      updates: [
+        {
+          meta: [
+            {
+              path: 'navigation.anchor.apparentBearing',
+              value: {
+                displayName: 'Anchor Apparent Bearing',
+                units: 'rad',
+                displayUnits: {"category":"angle"}
+              }
+            },
+            {
+              path: 'navigation.anchor.bearingTrue',
+              value: {
+                displayName: 'Anchor Bearing True',
+                units: 'rad',
+                displayUnits: {"category":"angle"}
+              }
+            },
+            {
+              path: 'navigation.anchor.distanceFromBow',
+              value: {
+                displayName: 'Distance from Bow',
+                units: 'm',
+                displayUnits: {"category":"length"}
+              }
+            },
+            {
+              path: 'navigation.anchor.rodeLength',
+              value: {
+                displayName: 'Rode Length',
+                units: 'm',
+                displayUnits: {"category":"length"}
+              }
+            },
+            {
+              path: 'design.bowAnchorHeight',
+              value: {
+                displayName: 'Bow Height From Water',
+                units: 'm',
+                displayUnits: {"category":"length"}
+              }
+            },
+            {
+              path: 'navigation.anchor.fudgeFactor',
+              value: {
+                displayName: 'Alarm Radius Fudge Factor',
+                units: 'm',
+                displayUnits: {"category":"length"}
+              }
+            }
+          ]
+        }
+      ]
+    }
+    app.handleMessage(plugin.id, delta)
   }
 
   return plugin
