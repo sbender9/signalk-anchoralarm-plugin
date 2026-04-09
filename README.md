@@ -6,6 +6,7 @@ A Signal K server plugin that monitors vessel position for anchor drift and prov
 
 - **Real-time anchor drift monitoring** with configurable alarm radius
 - **Automatic radius calculation** based on rode length and depth
+- **Intelligent anchor position detection** with depth-based and rode length-based activation methods
 - **Web-based interface** with interactive map showing vessel position, anchor position, and alarm radius
 - **REST API** for programmatic control
 - **Signal K PUT handlers** for standardized integration
@@ -32,6 +33,35 @@ Configure the plugin through the Signal K server admin interface or by editing t
 - **Bow Height**: Height of bow from water in meters (for rode length calculations)
 - **Alarm State**: Notification severity level (`alert`, `warn`, `alarm`, `emergency`)
 - **Incomplete Anchor Alarm**: Minutes before warning if anchoring process not completed
+
+### Rode Counter Automation
+
+The plugin supports automatic anchor position detection based on rode counter data:
+
+- **Enable Rode Counter Automation**: Automatically control anchor alarm based on rode counter value
+- **Rode Counter Path**: Signal K path for rode counter data (default: `navigation.anchor.rodeCounterLength`)
+- **Activation Method**: Choose how anchor position is detected:
+  - **Depth**: Sets anchor position when anchor reaches the seabed (calculated using water depth + bow height)
+  - **Rode length**: Sets anchor position when rode counter reaches specified threshold length
+- **Rode Deployment Threshold**: Rode length threshold for "Rode length" activation method (default: 5 meters)
+- **Rode Stabilization Time**: Wait time after rode stops changing before completing anchoring (default: 10 seconds)
+- **Use Rode Counter as Radius**: Calculate alarm radius from rode counter instead of GPS position
+
+#### Depth-Based Activation
+
+When "Activation Method" is set to "Depth", the plugin monitors `environment.depth.belowSurface` and automatically sets the anchor position when the anchor reaches the seabed. The threshold is calculated as:
+
+```
+threshold = water_depth + bow_height
+```
+
+This method provides more intelligent anchor detection by using actual water depth rather than relying solely on rode length, making it suitable for varying seabed conditions and anchor types.
+
+**Requirements for depth-based activation:**
+
+- A depth sensor providing `environment.depth.belowSurface` data
+- Properly configured bow height for accurate depth calculations
+- A rode counter providing rode length data
 
 ## Usage
 
@@ -208,6 +238,8 @@ Any Signal K client can monitor anchor status through the standard Signal K path
 - Automatically persists anchor state across server restarts
 - Calculates accurate anchor swing radius accounting for water depth and rode geometry
 - Supports GPS antenna bow offset compensation for precise anchor positioning
+- **Depth-based anchor detection**: Automatically detects when anchor reaches seabed using water depth sensor data
+- **Rode counter automation**: Monitors rode deployment and automatically manages anchor position and alarm radius
 
 ## License
 
