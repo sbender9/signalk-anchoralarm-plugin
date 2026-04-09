@@ -58,6 +58,7 @@ threshold = water_depth + bow_height
 This method provides more intelligent anchor detection by using actual water depth rather than relying solely on rode length, making it suitable for varying seabed conditions and anchor types.
 
 **Requirements for depth-based activation:**
+
 - A depth sensor providing `environment.depth.belowSurface` data
 - Properly configured bow height for accurate depth calculations
 - A rode counter providing rode length data
