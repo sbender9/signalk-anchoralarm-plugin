@@ -56,9 +56,10 @@ interface Configuration {
   rodeThreshold?: number
   rodeStabilizationTime?: number
   useRodeCounterAsRadius?: boolean
+  rodeActivationMethod?: 'depth' | 'length' 
   state?: string
   on?: boolean
-  radius?: number
+  radius?: number,
 }
 
 interface PositionTrack {
@@ -520,7 +521,7 @@ const load = function (app: PluginServerApp): Plugin {
       subscribe: [
         {
           path: configuration.rodeCounterPath as any,
-          period: subscribeperiod
+          period: 100
         }
       ]
     }
@@ -572,7 +573,19 @@ const load = function (app: PluginServerApp): Plugin {
       return
     }
 
-    const threshold = configuration.rodeThreshold
+    let threshold: number
+
+    if (configuration.rodeActivationMethod === 'depth') {
+      const depth = app.getSelfPath('environment.depth.belowSurface.value') as number | undefined
+      if ( depth === undefined) {
+        app.setPluginError('environment.depth.belowSurface not available for rode activation')
+        return
+      }
+      threshold = depth + (configuration.bowHeight || 0)
+    } else {
+      threshold = configuration.rodeThreshold
+    }
+
     const wasDeployed = lastRodeValue >= threshold
     const isDeployed = rodeValue >= threshold
 
@@ -591,20 +604,6 @@ const load = function (app: PluginServerApp): Plugin {
       rodeAnchoringInProgress = true
       state.radius = undefined
       configuration.radius = undefined
-
-      /*
-      const vesselPosition: any = app.getSelfPath('navigation.position.value')
-
-      const delta = getAnchorDelta(
-        vesselPosition,
-        state.position,
-        0,
-        undefined,
-        true,
-        state.position?.altitude,
-        undefined
-      )
-        */
 
       app.handleMessage(plugin.id, {
         updates: [
@@ -659,8 +658,7 @@ const load = function (app: PluginServerApp): Plugin {
         rodeStabilizationValue = rodeValue
         rodeStabilizationStartTime = Date.now()
         app.debug(
-          `Starting rode stabilization tracking at ${rodeValue}m (timer: ${
-            stabilizationTime / 1000
+          `Starting rode stabilization tracking at ${rodeValue}m (timer: ${stabilizationTime / 1000
           }s)`
         )
 
@@ -679,8 +677,7 @@ const load = function (app: PluginServerApp): Plugin {
         if (rodeStabilizationStartTime) {
           const timeInStableRange = Date.now() - rodeStabilizationStartTime
           app.debug(
-            `Rode stable at ${rodeValue}m for ${
-              timeInStableRange / 1000
+            `Rode stable at ${rodeValue}m for ${timeInStableRange / 1000
             }s (need ${stabilizationTime / 1000}s)`
           )
 
@@ -1726,11 +1723,20 @@ const load = function (app: PluginServerApp): Plugin {
           'Signal K path for the rode counter value (e.g. "steering.rudderAngle" or custom path)',
         default: 'navigation.anchor.rodeCounterLength'
       },
+      rodeActivationMethod: {
+        type: 'string',
+        title: 'Activation Method',
+        description:
+          'Method to determine when the anchor position is recorded. "Depth" sets it when the anchor reaches the seabed, while "Length" sets it when the rode counter reaches the specified length.',
+        enum: ['depth', 'length'],
+        enumNames: ['Depth', 'Rode length'],
+        default: 'depth'
+      },
       rodeThreshold: {
         type: 'number',
         title: 'Rode Deployment Threshold (m)',
         description:
-          'Minimum rode length in meters to automatically enable anchor alarm',
+          'Rode length in meters to automatically enable anchor alarm when Rode Length deployment detection is set to "Rode length"',
         default: 5
       },
       rodeStabilizationTime: {
@@ -1744,7 +1750,7 @@ const load = function (app: PluginServerApp): Plugin {
         type: 'boolean',
         title: 'Use Rode Counter as Alarm Radius',
         description:
-          'Use the rode counter value directly as the alarm radius instead of calculating based on geometry',
+          'Use the rode counter to calculate the alarm radius instead of gps position',
         default: false
       }
     }
