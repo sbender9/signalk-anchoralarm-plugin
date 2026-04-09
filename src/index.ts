@@ -580,7 +580,11 @@ const load = function (app: PluginServerApp): Plugin {
       `Rode value changed: ${lastRodeValue} -> ${rodeValue}, threshold: ${threshold}`
     )
 
-    if (state.on && rodeAnchoringInProgress === false && rodeValue > lastRodeValue) {
+    if (
+      state.on &&
+      rodeAnchoringInProgress === false &&
+      rodeValue > lastRodeValue
+    ) {
       app.debug(
         'Rode going out after the anchor was set, restarting anchoring process'
       )
