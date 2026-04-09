@@ -56,10 +56,10 @@ interface Configuration {
   rodeThreshold?: number
   rodeStabilizationTime?: number
   useRodeCounterAsRadius?: boolean
-  rodeActivationMethod?: 'depth' | 'length' 
+  rodeActivationMethod?: 'depth' | 'length'
   state?: string
   on?: boolean
-  radius?: number,
+  radius?: number
 }
 
 interface PositionTrack {
@@ -576,9 +576,13 @@ const load = function (app: PluginServerApp): Plugin {
     let threshold: number
 
     if (configuration.rodeActivationMethod === 'depth') {
-      const depth = app.getSelfPath('environment.depth.belowSurface.value') as number | undefined
-      if ( depth === undefined) {
-        app.setPluginError('environment.depth.belowSurface not available for rode activation')
+      const depth = app.getSelfPath('environment.depth.belowSurface.value') as
+        | number
+        | undefined
+      if (depth === undefined) {
+        app.setPluginError(
+          'environment.depth.belowSurface not available for rode activation'
+        )
         return
       }
       threshold = depth + (configuration.bowHeight || 0)
@@ -658,7 +662,8 @@ const load = function (app: PluginServerApp): Plugin {
         rodeStabilizationValue = rodeValue
         rodeStabilizationStartTime = Date.now()
         app.debug(
-          `Starting rode stabilization tracking at ${rodeValue}m (timer: ${stabilizationTime / 1000
+          `Starting rode stabilization tracking at ${rodeValue}m (timer: ${
+            stabilizationTime / 1000
           }s)`
         )
 
@@ -677,7 +682,8 @@ const load = function (app: PluginServerApp): Plugin {
         if (rodeStabilizationStartTime) {
           const timeInStableRange = Date.now() - rodeStabilizationStartTime
           app.debug(
-            `Rode stable at ${rodeValue}m for ${timeInStableRange / 1000
+            `Rode stable at ${rodeValue}m for ${
+              timeInStableRange / 1000
             }s (need ${stabilizationTime / 1000}s)`
           )
 
