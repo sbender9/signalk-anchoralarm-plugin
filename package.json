@@ -2,13 +2,17 @@
   "name": "signalk-anchoralarm-plugin",
   "version": "1.18.2",
   "description": "Plugin that checks the vessel position to see if there's anchor drift",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "test": "$NODE $npm_package_main",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "test": "$NODE dist/index.js",
     "create-release": "github-create-release --owner sbender9 --repository signalk-anchoralarm-plugin",
-    "release": "git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release",
-    "prettier": "prettier -w index.js",
-    "lint": "eslint -c .eslintrc.js --ext .ts --ext .js --fix index.js",
+    "release": "npm run build && git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release",
+    "prettier": "prettier -w src/**/*.ts",
+    "lint": "eslint src/**/*.ts --fix",
     "format": "npm run prettier && npm run lint"
   },
   "keywords": [
@@ -26,18 +30,27 @@
   },
   "license": "ISC",
   "dependencies": {
+    "@signalk/server-api": "^2.0.0",
+    "@tsconfig/node20": "^20.1.9",
     "baconjs": "^0.7.88",
+    "eslint-config-prettier": "^10.1.8",
     "geolib": "^3.3.3",
-    "lodash": "^4.17.4"
+    "lodash": "^4.17.4",
+    "typescript-eslint": "^8.58.1"
   },
   "devDependencies": {
     "@signalk/github-create-release": "^1.0.1",
-    "eslint": "^8.24.0",
-    "eslint-config-prettier": "^8.5.0",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-react": "^7.31.8",
-    "prettier": "^2.7.1"
+    "@types/node": "^20.0.0",
+    "eslint": "^9.33.0",
+    "prettier": "^2.7.1",
+    "typescript": "^5.0.0"
   },
+  "files": [
+    "dist/**/*",
+    "public/**/*",
+    "README.md",
+    "LICENSE"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/sbender9/signalk-anchoralarm-plugin"
