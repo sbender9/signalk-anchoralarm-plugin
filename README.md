@@ -38,11 +38,13 @@ Configure the plugin through the Signal K server admin interface or by editing t
 ### Web Interface
 
 Access the interactive web application at:
+
 ```
 http://[signalk-server-ip]:[port]/signalk-anchoralarm-plugin/
 ```
 
 Optional URL parameters for map display:
+
 - `/?openseamap` - Enable OpenSeaMap overlay
 - `/?satellite` - Use satellite imagery
 - `/?satellite&openseamap` - Both satellite and OpenSeaMap
@@ -54,7 +56,9 @@ Optional URL parameters for map display:
 The plugin provides several REST endpoints for anchor management:
 
 #### Drop Anchor
+
 Sets the anchor position based on current vessel position (adjusted for bow GPS offset).
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"radius": 25}' \
@@ -62,7 +66,9 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 #### Set Alarm Radius
+
 Calculate radius based on current distance from anchor, or set a specific radius.
+
 ```bash
 # Auto-calculate from current position
 curl -X POST -H "Content-Type: application/json" \
@@ -76,20 +82,26 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 #### Set Rode Length
+
 Calculate alarm radius from anchor rode length and depth.
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"length": 50}' \
   http://localhost:3000/plugins/anchoralarm/setRodeLength
 ```
+
 The plugin automatically calculates the maximum swing radius using:
+
 - Rode length
 - Water depth (from depth sensor or manual input)
 - Bow height configuration
 - GPS antenna offset from bow
 
 #### Set Manual Anchor Position
+
 Estimate anchor position based on heading, depth, and rode length.
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"anchorDepth": 4.5, "rodeLength": 45}' \
@@ -97,7 +109,9 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 #### Raise Anchor
+
 Clear anchor position and disable alarm monitoring.
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{}' \
@@ -105,7 +119,9 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 #### Set Anchor Position
+
 Manually set the anchor position coordinates.
+
 ```bash
 curl -X POST -H "Content-Type: application/json" \
   -d '{"position": {"latitude": 37.8267, "longitude": -122.4233}}' \
@@ -113,7 +129,9 @@ curl -X POST -H "Content-Type: application/json" \
 ```
 
 #### Get Position Track
+
 Retrieve vessel position history (up to 24 hours).
+
 ```bash
 curl http://localhost:3000/plugins/anchoralarm/getTrack
 ```
@@ -123,6 +141,7 @@ curl http://localhost:3000/plugins/anchoralarm/getTrack
 The plugin registers PUT handlers for standard Signal K paths:
 
 #### Set Anchor Position
+
 ```javascript
 // Set anchor position
 PUT vessels.self.navigation.anchor.position
@@ -138,12 +157,14 @@ null
 ```
 
 #### Set Maximum Radius
+
 ```javascript
 PUT vessels.self.navigation.anchor.maxRadius
 25  // radius in meters
 ```
 
 #### Set Rode Length
+
 ```javascript
 PUT vessels.self.navigation.anchor.rodeLength
 50  // length in meters
@@ -173,9 +194,11 @@ The plugin sends Signal K notifications for various alarm conditions:
 ## Integration
 
 ### WilhelmSK
+
 The plugin is fully compatible with [WilhelmSK](https://itunes.apple.com/us/app/wilhelmsk/id1150499484?mt=8) for setting and monitoring anchor alarms.
 
 ### Other Signal K Apps
+
 Any Signal K client can monitor anchor status through the standard Signal K paths and use the PUT handlers for control.
 
 ## Technical Details
@@ -189,11 +212,13 @@ Any Signal K client can monitor anchor status through the standard Signal K path
 ## License
 
 ISC License - see LICENSE file for details.
+
 - **Value**: Position object with `latitude`, `longitude`, and optionally `altitude` properties, or `null` to raise the anchor
-- **Behavior**: 
+- **Behavior**:
   - When a position is provided, sets the anchor position and starts monitoring if a radius is configured
   - When `null` is provided, raises the anchor and stops monitoring
 - **Example PUT request**:
+
 ```json
 {
   "context": "vessels.self",
@@ -208,13 +233,17 @@ ISC License - see LICENSE file for details.
   }
 }
 ```
+
 - **Example curl command**:
+
 ```bash
 curl -X PUT -H "Content-Type: application/json" \
   -d '{"value":{"latitude":37.7749,"longitude":-122.4194,"altitude":-5.2}}' \
   http://localhost:3000/signalk/v1/api/vessels/self/navigation/anchor/position
 ```
+
 - **To raise the anchor (set position to null)**:
+
 ```bash
 curl -X PUT -H "Content-Type: application/json" \
   -d '{"value":null}' \
@@ -222,11 +251,13 @@ curl -X PUT -H "Content-Type: application/json" \
 ```
 
 #### navigation.anchor.maxRadius
+
 - **Path**: `vessels.self.navigation.anchor.maxRadius`
 - **Purpose**: Set the maximum anchor alarm radius in meters
 - **Value**: Number representing radius in meters
 - **Behavior**: Sets the alarm radius and starts monitoring if an anchor position is already set
 - **Example PUT request**:
+
 ```json
 {
   "context": "vessels.self",
@@ -237,7 +268,9 @@ curl -X PUT -H "Content-Type: application/json" \
   }
 }
 ```
+
 - **Example curl command**:
+
 ```bash
 curl -X PUT -H "Content-Type: application/json" \
   -d '{"value":50}' \
@@ -245,14 +278,16 @@ curl -X PUT -H "Content-Type: application/json" \
 ```
 
 #### navigation.anchor.rodeLength
+
 - **Path**: `vessels.self.navigation.anchor.rodeLength`
 - **Purpose**: Set the anchor rode length and automatically calculate the appropriate alarm radius
 - **Value**: Number representing rode length in meters
-- **Behavior**: 
+- **Behavior**:
   - Sets the rode length value in the Signal K data
   - Automatically calculates and sets the anchor position based on current vessel position, heading, depth, and configuration
   - Starts anchor monitoring with the calculated parameters
 - **Example PUT request**:
+
 ```json
 {
   "context": "vessels.self",
@@ -263,7 +298,9 @@ curl -X PUT -H "Content-Type: application/json" \
   }
 }
 ```
+
 - **Example curl command**:
+
 ```bash
 curl -X PUT -H "Content-Type: application/json" \
   -d '{"value":30}' \
@@ -273,11 +310,10 @@ curl -X PUT -H "Content-Type: application/json" \
 ### Using PUT
 
 These put handlers can be triggered by:
+
 - Signal K apps (like WilhelmSK)
 - Other plugins
 - Direct HTTP PUT requests to the Signal K server's REST API
 - WebSocket PUT messages
 
 The handlers provide a more standardized interface compared to the plugin-specific REST endpoints, following Signal K conventions for data paths and PUT handling.
-
-
