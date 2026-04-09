@@ -191,11 +191,11 @@ const load = function (app: PluginServerApp): Plugin {
             },
             {
               path: 'navigation.anchor.fudgeFactor' as any,
-              value: { 
+              value: {
                 displayName: 'Fudge Factor',
                 units: 'm',
                 displayUnits: { category: 'length' }
-               }
+              }
             },
             {
               path: 'navigation.anchor.distanceFromBow' as any,
@@ -215,11 +215,11 @@ const load = function (app: PluginServerApp): Plugin {
             },
             {
               path: 'navigation.anchor.warningRadius' as any,
-              value: { 
+              value: {
                 displayName: 'Warn Radius',
                 units: 'm',
                 displayUnits: { category: 'length' }
-               }
+              }
             }
           ]
         }
@@ -567,6 +567,11 @@ const load = function (app: PluginServerApp): Plugin {
       return
     }
 
+    if (lastRodeValue === undefined) {
+      lastRodeValue = rodeValue
+      return
+    }
+
     const threshold = configuration.rodeThreshold
     const wasDeployed = lastRodeValue >= threshold
     const isDeployed = rodeValue >= threshold
@@ -575,7 +580,54 @@ const load = function (app: PluginServerApp): Plugin {
       `Rode value changed: ${lastRodeValue} -> ${rodeValue}, threshold: ${threshold}`
     )
 
-    if (!wasDeployed && isDeployed) {
+    if (
+      state.on &&
+      rodeAnchoringInProgress === false &&
+      rodeValue > lastRodeValue
+    ) {
+      app.debug(
+        'Rode going out after the anchor was set, restarting anchoring process'
+      )
+      rodeAnchoringInProgress = true
+      state.radius = undefined
+      configuration.radius = undefined
+
+      /*
+      const vesselPosition: any = app.getSelfPath('navigation.position.value')
+
+      const delta = getAnchorDelta(
+        vesselPosition,
+        state.position,
+        0,
+        undefined,
+        true,
+        state.position?.altitude,
+        undefined
+      )
+        */
+
+      app.handleMessage(plugin.id, {
+        updates: [
+          {
+            values: [
+              {
+                path: 'navigation.anchor.maxRadius' as Path,
+                value: null
+              },
+              {
+                path: 'navigation.anchor.warningRadius' as Path,
+                value: null
+              }
+            ]
+          }
+        ]
+      })
+
+      saveState()
+      //return
+    }
+
+    if (!wasDeployed && isDeployed && state.on === false) {
       // Rode deployed beyond threshold - automatically set anchor position (but not radius yet)
       app.debug(
         'Rode deployed, automatically setting anchor position (waiting for stabilization)'
@@ -768,9 +820,7 @@ const load = function (app: PluginServerApp): Plugin {
   }
 
   function dropAnchor(radius?: number): string | undefined {
-    let vesselPosition: any = app.getSelfPath('navigation.position')
-    if (vesselPosition && vesselPosition.value)
-      vesselPosition = vesselPosition.value
+    const vesselPosition: any = app.getSelfPath('navigation.position.value')
 
     if (typeof vesselPosition == 'undefined') {
       app.debug('no position available')

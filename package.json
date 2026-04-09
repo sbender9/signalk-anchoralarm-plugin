@@ -9,10 +9,10 @@
     "build:watch": "tsc --watch",
     "prepublishOnly": "npm run build",
     "test": "$NODE dist/index.js",
-    "create-release": "github-create-release --owner sbender9 --repository signalk-anchoralarm-plugin",
-    "release": "npm run build && git tag -d v$npm_package_version; git tag v$npm_package_version && git push --tags && git push && npm run create-release",
     "prettier": "prettier -w src/**/*.ts",
-    "lint": "eslint src/**/*.ts --fix",
+    "lint": "eslint --fix",
+    "ci-lint": "eslint && prettier --check .",
+    "ci-test": "npm run build && npm run test && npm run ci-lint",
     "format": "npm run prettier && npm run lint"
   },
   "keywords": [
