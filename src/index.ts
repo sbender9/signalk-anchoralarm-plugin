@@ -50,16 +50,15 @@ interface Configuration {
   noPositionAlarmTime?: number
   fudge?: number
   bowHeight?: number
-  state?: string
   incompleteAnchorAlarmTime?: number
   enableRodeAutomation?: boolean
   rodeCounterPath?: string
   rodeThreshold?: number
   rodeStabilizationTime?: number
   useRodeCounterAsRadius?: boolean
-  radius?: number
+  state?: string
   on?: boolean
-  position?: Position
+  radius?: number
 }
 
 interface PositionTrack {
@@ -89,7 +88,7 @@ const load = function (app: PluginServerApp): Plugin {
   let lastRodeValue: number = 0
   let rodeAutomationEnabled: boolean = false
   let rodeStabilizationTimer: NodeJS.Timeout | null = null
-  let anchoringInProgress: boolean = false
+  let rodeAnchoringInProgress: boolean = false
   let rodeStabilizationValue: number | null = null
   let rodeStabilizationStartTime: number | null = null
 
@@ -114,14 +113,6 @@ const load = function (app: PluginServerApp): Plugin {
         }
       } else {
         state = { on: false }
-
-        const isOn = configuration.on
-        if (isOn) {
-          state.on = isOn
-          state.position = configuration.position
-          state.radius = configuration.radius
-          saveState()
-        }
       }
 
       sendMeta()
@@ -162,8 +153,6 @@ const load = function (app: PluginServerApp): Plugin {
         'navigation.anchor.rodeLength',
         putRodeLength
       )
-
-      sendMeta()
     } catch (e) {
       app.error('error: ' + e)
       console.error((e as Error).stack)
@@ -178,28 +167,64 @@ const load = function (app: PluginServerApp): Plugin {
           meta: [
             {
               path: 'navigation.anchor.bearingTrue' as any,
-              value: { units: 'rad' }
+              value: {
+                displayName: 'Anchor Bearing True',
+                units: 'rad',
+                displayUnits: { category: 'angle' }
+              }
             },
             {
               path: 'navigation.anchor.apparentBearing' as any,
-              value: { units: 'rad' }
+              value: {
+                displayName: 'Anchor Apparent Bearing',
+                units: 'rad',
+                displayUnits: { category: 'angle' }
+              }
             },
             {
               path: 'navigation.anchor.rodeLength' as any,
-              value: { units: 'm' }
+              value: {
+                displayName: 'Rode Length',
+                units: 'm',
+                displayUnits: { category: 'length' }
+              }
             },
             {
               path: 'navigation.anchor.fudgeFactor' as any,
-              value: { units: 'm' }
+              value: { 
+                displayName: 'Fudge Factor',
+                units: 'm',
+                displayUnits: { category: 'length' }
+               }
             },
             {
               path: 'navigation.anchor.distanceFromBow' as any,
-              value: { units: 'm' }
+              value: {
+                displayName: 'Distance from Bow',
+                units: 'm',
+                displayUnits: { category: 'length' }
+              }
+            },
+            {
+              path: 'design.bowAnchorHeight' as any,
+              value: {
+                displayName: 'Anchor Height',
+                units: 'm',
+                displayUnits: { category: 'length' }
+              }
+            },
+            {
+              path: 'navigation.anchor.warningRadius' as any,
+              value: { 
+                displayName: 'Warn Radius',
+                units: 'm',
+                displayUnits: { category: 'length' }
+               }
             }
           ]
         }
       ]
-    })
+    } as Delta)
   }
 
   function saveState(): void {
@@ -404,7 +429,7 @@ const load = function (app: PluginServerApp): Plugin {
       positionStop as any,
       (err: unknown) => {
         app.error('subscription error: ' + err)
-        app.setPluginError('subscription error: '+ err)
+        app.setPluginError('subscription error: ' + err)
       },
       (delta: Delta) => {
         let position: Position | undefined
@@ -442,7 +467,7 @@ const load = function (app: PluginServerApp): Plugin {
           lastPosition = position
           lastPositionTime = Date.now()
           const anchorState = checkPosition(
-            state.radius || 0,
+            state.radius,
             position,
             state.position!,
             state.rodeLength
@@ -457,7 +482,7 @@ const load = function (app: PluginServerApp): Plugin {
             delayStartTime = undefined
             alarmSent = false
           } else if (!wasSent || prevAnchorState !== anchorState) {
-            sendAnchorAlarm(configuration.state || 'emergency')
+            sendAnchorAlarm(anchorState)
           }
           prevAnchorState = anchorState
         }
@@ -561,7 +586,7 @@ const load = function (app: PluginServerApp): Plugin {
         app.error('Failed to drop anchor automatically: ' + res)
       } else {
         // Set anchoring in progress flag so stabilization logic will run
-        anchoringInProgress = true
+        rodeAnchoringInProgress = true
         app.debug('Anchor position set, starting stabilization monitoring')
       }
       saveState()
@@ -569,9 +594,9 @@ const load = function (app: PluginServerApp): Plugin {
       // Rode retrieved below threshold - automatically raise anchor
       app.debug('Rode retrieved, automatically raising anchor')
       clearRodeStabilizationTimer()
-      anchoringInProgress = false
+      rodeAnchoringInProgress = false
       raiseAnchor()
-    } else if (isDeployed && anchoringInProgress) {
+    } else if (isDeployed && rodeAnchoringInProgress) {
       // Rode is deployed and we're in anchoring process - check if it has stabilized
       const stabilizationThreshold = 0.1 // meters
       const stabilizationTime =
@@ -635,34 +660,42 @@ const load = function (app: PluginServerApp): Plugin {
   }
 
   function completeAnchoring(finalRodeLength: number): void {
-    if (!anchoringInProgress || !state.position) {
-      app.debug('completeAnchoring called but anchoring not in progress or no anchor position')
+    if (!rodeAnchoringInProgress || !state.position) {
+      app.debug(
+        'completeAnchoring called but anchoring not in progress or no anchor position'
+      )
       return
     }
 
-    app.debug('Completing anchoring process with rode length: ' + finalRodeLength + 'm')
-    
+    app.debug(
+      'Completing anchoring process with rode length: ' + finalRodeLength + 'm'
+    )
+
     // Update the rode length to the final stabilized value
     //state.rodeLength = finalRodeLength
-    
+
     // Call setRadius with undefined to auto-calculate based on current position
-    let error = setRadius(undefined)
+    const error = setRadius(undefined)
     if (error) {
       app.error('Failed to set radius automatically: ' + error)
       return
     }
 
     // Mark anchoring as complete
-    anchoringInProgress = false
+    rodeAnchoringInProgress = false
 
     // Clear incomplete anchor alarm since we've completed the process
     clearIncompleteAlarm()
-    
+
     // Clear stabilization tracking
     clearRodeStabilizationTimer()
-    
+
     saveState()
-    app.debug('Anchoring process completed automatically with radius: ' + state.radius + 'm')
+    app.debug(
+      'Anchoring process completed automatically with radius: ' +
+        state.radius +
+        'm'
+    )
   }
 
   // Rest of the functions would continue here... (truncated for length)
@@ -696,7 +729,7 @@ const load = function (app: PluginServerApp): Plugin {
 
     clearIncompleteAlarm()
     clearRodeStabilizationTimer()
-    anchoringInProgress = false
+    rodeAnchoringInProgress = false
 
     if (alarmSent) {
       const alarmDelta = getAnchorAlarmDelta('normal')
@@ -708,9 +741,9 @@ const load = function (app: PluginServerApp): Plugin {
     delete state.position
     delete state.radius
     delete state.rodeLength
-    delete configuration['radius']
+    delete configuration.radius
     state.on = false
-    configuration['on'] = false
+    configuration.on = false
 
     stopWatchingPosition()
 
@@ -755,9 +788,6 @@ const load = function (app: PluginServerApp): Plugin {
           ' ' +
           position.longitude
       )
-      if (typeof radius == 'undefined') {
-        radius = undefined
-      }
 
       const depth = app.getSelfPath('environment.depth.belowSurface.value') as
         | number
@@ -786,9 +816,9 @@ const load = function (app: PluginServerApp): Plugin {
         state.position.altitude = depth * -1
       }
       state.radius = radius
-      configuration['radius'] = radius
+      configuration.radius = radius
       state.on = true
-      configuration['on'] = true
+      configuration.on = true
 
       let alarmTime = configuration.incompleteAnchorAlarmTime
 
@@ -827,7 +857,7 @@ const load = function (app: PluginServerApp): Plugin {
 
       if (radius === undefined) {
         app.debug('state: %o', state)
-        if (configuration.useRodeCounterAsRadius) {
+        if (configuration.useRodeCounterAsRadius && rodeAnchoringInProgress) {
           radius = getAlarmRadiusFromRodeLength(
             state.position.altitude as number
           )
@@ -866,7 +896,7 @@ const load = function (app: PluginServerApp): Plugin {
       app.handleMessage(plugin.id, delta)
 
       state.radius = radius
-      configuration['radius'] = radius
+      configuration.radius = radius
 
       return undefined
     }
@@ -1044,10 +1074,11 @@ const load = function (app: PluginServerApp): Plugin {
     app.handleMessage(plugin.id, delta)
 
     state.on = true
-    configuration['on'] = true
+    configuration.on = true
     state.radius = maxRadius
-    configuration['radius'] = maxRadius
+    configuration.radius = maxRadius
     state.position = newposition
+
     if (rode) {
       state.rodeLength = rode
     }
@@ -1185,7 +1216,7 @@ const load = function (app: PluginServerApp): Plugin {
   }
 
   function checkPosition(
-    radius: number,
+    radius: number | undefined,
     position: Position,
     anchorPosition: Position,
     rodeLength?: number
@@ -1205,10 +1236,7 @@ const load = function (app: PluginServerApp): Plugin {
 
     let meters
 
-    if (
-      configuration.useRodeCounterAsRadius &&
-      (state.radius === undefined || state.radius === null)
-    ) {
+    if (configuration.useRodeCounterAsRadius && rodeAnchoringInProgress) {
       // we are still letting the anchor out
       app.debug('Calculating distance using rode length as radius')
       meters = getAlarmRadiusFromRodeLength(anchorPosition.altitude as number)
@@ -1271,7 +1299,7 @@ const load = function (app: PluginServerApp): Plugin {
     return undefined
   }
 
-  function sendAnchorAlarm(state: string, message?: string): void {
+  function sendAnchorAlarm(state: string | undefined, message?: string): void {
     if (state) {
       const delta = getAnchorAlarmDelta(state, message)
       app.debug('send alarm: %j', delta)
@@ -1355,14 +1383,14 @@ const load = function (app: PluginServerApp): Plugin {
         })
       }
 
-      if (currentRadius != null) {
+      if (currentRadius != undefined) {
         values.push({
           path: 'navigation.anchor.currentRadius' as Path,
           value: currentRadius
         })
       }
 
-      if (maxRadius != null) {
+      if (maxRadius != undefined) {
         values.push({
           path: 'navigation.anchor.maxRadius' as Path,
           value: maxRadius
@@ -1370,6 +1398,10 @@ const load = function (app: PluginServerApp): Plugin {
         let zones
         if (configuration.warningPercentage) {
           const warning = maxRadius * (configuration.warningPercentage / 100)
+          values.push({
+            path: 'navigation.anchor.warningRadius' as Path,
+            value: warning
+          })
           zones = [
             {
               state: 'normal',
@@ -1800,7 +1832,7 @@ const load = function (app: PluginServerApp): Plugin {
       app.handleMessage(plugin.id, delta)
 
       state.radius = maxRadius
-      configuration['radius'] = maxRadius
+      configuration.radius = maxRadius
       state.rodeLength = length
 
       try {
