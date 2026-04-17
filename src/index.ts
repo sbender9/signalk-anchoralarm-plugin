@@ -736,9 +736,13 @@ const load = function (app: PluginServerApp): Plugin {
     let radius: number | undefined
 
     if (rodeExtendingRadiusStartRadius !== undefined) {
-      radius = rodeExtendingRadiusStartRadius + (finalRodeLength - rodeExtendingRodeStartValue!)
+      radius =
+        rodeExtendingRadiusStartRadius +
+        (finalRodeLength - rodeExtendingRodeStartValue!)
       app.debug(
-        `Extending radius based on rode length change: start radius ${rodeExtendingRadiusStartRadius}m, rode change ${finalRodeLength - rodeExtendingRodeStartValue!}m, new radius ${radius}m`
+        `Extending radius based on rode length change: start radius ${rodeExtendingRadiusStartRadius}m, rode change ${
+          finalRodeLength - rodeExtendingRodeStartValue!
+        }m, new radius ${radius}m`
       )
       rodeExtendingRadiusStartRadius = undefined
       rodeExtendingRodeStartValue = undefined
