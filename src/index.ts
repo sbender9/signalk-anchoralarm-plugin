@@ -92,6 +92,8 @@ const load = function (app: PluginServerApp): Plugin {
   let rodeAnchoringInProgress: boolean = false
   let rodeStabilizationValue: number | null = null
   let rodeStabilizationStartTime: number | null = null
+  let rodeExtendingRadiusStartRadius: number | undefined = undefined
+  let rodeExtendingRodeStartValue: number | undefined = undefined
 
   plugin.start = function (props: Configuration): void | Error {
     configuration = props
@@ -606,6 +608,8 @@ const load = function (app: PluginServerApp): Plugin {
         'Rode going out after the anchor was set, restarting anchoring process'
       )
       rodeAnchoringInProgress = true
+      rodeExtendingRadiusStartRadius = state.radius
+      rodeExtendingRodeStartValue = lastRodeValue
       state.radius = undefined
       configuration.radius = undefined
 
@@ -729,8 +733,19 @@ const load = function (app: PluginServerApp): Plugin {
     // Update the rode length to the final stabilized value
     //state.rodeLength = finalRodeLength
 
+    let radius: number | undefined
+
+    if (rodeExtendingRadiusStartRadius !== undefined) {
+      radius = rodeExtendingRadiusStartRadius + (finalRodeLength - rodeExtendingRodeStartValue!)
+      app.debug(
+        `Extending radius based on rode length change: start radius ${rodeExtendingRadiusStartRadius}m, rode change ${finalRodeLength - rodeExtendingRodeStartValue!}m, new radius ${radius}m`
+      )
+      rodeExtendingRadiusStartRadius = undefined
+      rodeExtendingRodeStartValue = undefined
+    }
+
     // Call setRadius with undefined to auto-calculate based on current position
-    const error = setRadius(undefined)
+    const error = setRadius(radius)
     if (error) {
       app.error('Failed to set radius automatically: ' + error)
       return
@@ -785,6 +800,8 @@ const load = function (app: PluginServerApp): Plugin {
     clearIncompleteAlarm()
     clearRodeStabilizationTimer()
     rodeAnchoringInProgress = false
+    rodeExtendingRadiusStartRadius = undefined
+    rodeExtendingRodeStartValue = undefined
 
     if (alarmSent) {
       const alarmDelta = getAnchorAlarmDelta('normal')
