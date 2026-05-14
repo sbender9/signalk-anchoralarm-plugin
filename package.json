@@ -31,19 +31,17 @@
   "license": "ISC",
   "dependencies": {
     "@signalk/server-api": "^2.0.0",
-    "@tsconfig/node20": "^20.1.9",
-    "baconjs": "^0.7.88",
-    "eslint-config-prettier": "^10.1.8",
-    "geolib": "^3.3.3",
-    "lodash": "^4.17.4",
-    "typescript-eslint": "^8.58.1"
+    "geolib": "^3.3.3"
   },
   "devDependencies": {
     "@signalk/github-create-release": "^1.0.1",
     "@types/node": "^20.0.0",
     "eslint": "^9.33.0",
     "prettier": "^2.7.1",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@tsconfig/node20": "^20.1.9",
+    "eslint-config-prettier": "^10.1.8",
+    "typescript-eslint": "^8.58.1"
   },
   "files": [
     "dist/**/*",
