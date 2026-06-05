@@ -1726,7 +1726,7 @@ const load = function (app: PluginServerApp): Plugin {
   }
 
   function getRodeLength(): number | undefined {
-    let res : number | undefined
+    let res: number | undefined
     if (
       configuration.rodeCounterPath &&
       configuration.rodeCounterPath.length > 0
