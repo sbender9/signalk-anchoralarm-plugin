@@ -67,6 +67,9 @@ interface PositionTrack {
   time: number
 }
 
+const startingNotification = 'notifications.navigation.anchoring.started'
+const endedNotification = 'notifications.navigation.anchoring.ended'
+
 const load = function (app: PluginServerApp): Plugin {
   const plugin: Plugin = {} as Plugin
   let alarmSent: boolean = false
@@ -841,6 +844,9 @@ const load = function (app: PluginServerApp): Plugin {
     })
 
     saveState()
+
+    sendAnchoringNotification(startingNotification, 'normal', '')
+    sendAnchoringNotification(endedNotification, 'normal', '')
   }
 
   function dropAnchor(radius?: number): string | undefined {
@@ -879,6 +885,8 @@ const load = function (app: PluginServerApp): Plugin {
       app.handleMessage(plugin.id, delta)
 
       sendAnchorAlarm('normal')
+
+      sendAnchoringNotification(startingNotification, 'alert', 'Anchoring in progress')
 
       app.debug('anchor delta: ' + JSON.stringify(delta))
 
@@ -971,6 +979,9 @@ const load = function (app: PluginServerApp): Plugin {
 
       state.radius = radius
       configuration.radius = radius
+
+      sendAnchoringNotification(startingNotification, 'normal', 'Anchoring in progress')
+      sendAnchoringNotification(endedNotification, 'alert', 'Anchoring completed')
 
       return undefined
     }
@@ -1594,6 +1605,26 @@ const load = function (app: PluginServerApp): Plugin {
       ]
     }
     return delta
+  }
+
+  function sendAnchoringNotification(path: string, alarmState: string, msg?: string): void {
+    const delta: Delta = {
+      updates: [
+        {
+          values: [
+            {
+              path: path as Path,
+              value: {
+                state: alarmState,
+                method: [],
+                message: msg
+              }
+            }
+          ]
+        }
+      ]
+    }
+    app.handleMessage(plugin.id, delta)
   }
 
   function computeAnchorApparentBearing(
