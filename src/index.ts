@@ -886,7 +886,11 @@ const load = function (app: PluginServerApp): Plugin {
 
       sendAnchorAlarm('normal')
 
-      sendAnchoringNotification(startingNotification, 'alert', 'Anchoring in progress')
+      sendAnchoringNotification(
+        startingNotification,
+        'alert',
+        'Anchoring in progress'
+      )
 
       if ((app.debug as unknown as { enabled: boolean }).enabled) {
         app.debug('anchor delta: ' + JSON.stringify(delta))
@@ -982,8 +986,16 @@ const load = function (app: PluginServerApp): Plugin {
       state.radius = radius
       configuration.radius = radius
 
-      sendAnchoringNotification(startingNotification, 'normal', 'Anchoring in progress')
-      sendAnchoringNotification(endedNotification, 'alert', 'Anchoring completed')
+      sendAnchoringNotification(
+        startingNotification,
+        'normal',
+        'Anchoring in progress'
+      )
+      sendAnchoringNotification(
+        endedNotification,
+        'alert',
+        'Anchoring completed'
+      )
 
       return undefined
     }
@@ -1609,7 +1621,11 @@ const load = function (app: PluginServerApp): Plugin {
     return delta
   }
 
-  function sendAnchoringNotification(path: string, alarmState: string, msg?: string): void {
+  function sendAnchoringNotification(
+    path: string,
+    alarmState: string,
+    msg?: string
+  ): void {
     const delta: Delta = {
       updates: [
         {
