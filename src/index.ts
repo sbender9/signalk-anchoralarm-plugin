@@ -888,7 +888,9 @@ const load = function (app: PluginServerApp): Plugin {
 
       sendAnchoringNotification(startingNotification, 'alert', 'Anchoring in progress')
 
-      app.debug('anchor delta: ' + JSON.stringify(delta))
+      if ((app.debug as unknown as { enabled: boolean }).enabled) {
+        app.debug('anchor delta: ' + JSON.stringify(delta))
+      }
 
       state.position = {
         latitude: position.latitude,
@@ -2010,7 +2012,9 @@ const load = function (app: PluginServerApp): Plugin {
         state.rodeLength
       )
 
-      app.debug('setAnchorPosition: ' + JSON.stringify(delta))
+      if ((app.debug as unknown as { enabled: boolean }).enabled) {
+        app.debug('setAnchorPosition: ' + JSON.stringify(delta))
+      }
       app.handleMessage(plugin.id, delta)
 
       state.position = {
