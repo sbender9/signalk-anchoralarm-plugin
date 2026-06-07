@@ -336,7 +336,7 @@ const load = function (app: PluginServerApp): Plugin {
           state.radius,
           true,
           undefined,
-          state.rodeLength
+          getRodeLength()
         )
         app.handleMessage(plugin.id, delta)
 
@@ -476,7 +476,7 @@ const load = function (app: PluginServerApp): Plugin {
             state.radius,
             position,
             state.position!,
-            state.rodeLength
+            getRodeLength()
           )
           const wasSent = alarmSent
           alarmSent = anchorState !== undefined
@@ -979,7 +979,7 @@ const load = function (app: PluginServerApp): Plugin {
         radius,
         false,
         state.position.altitude,
-        state.rodeLength
+        getRodeLength()
       )
       app.handleMessage(plugin.id, delta)
 
@@ -1161,17 +1161,6 @@ const load = function (app: PluginServerApp): Plugin {
 
     const newposition = calcPositionFrom(position, heading, curRadius)
 
-    const delta = getAnchorDelta(
-      position,
-      newposition,
-      curRadius,
-      maxRadius,
-      true,
-      depth,
-      rode
-    )
-    app.handleMessage(plugin.id, delta)
-
     state.on = true
     configuration.on = true
     state.radius = maxRadius
@@ -1185,6 +1174,17 @@ const load = function (app: PluginServerApp): Plugin {
     if (depth) {
       state.position.altitude = depth * -1
     }
+
+    const delta = getAnchorDelta(
+      position,
+      newposition,
+      curRadius,
+      maxRadius,
+      true,
+      depth,
+      getRodeLength()
+    )
+    app.handleMessage(plugin.id, delta)
 
     startWatchingPosistion()
 
@@ -1283,7 +1283,7 @@ const load = function (app: PluginServerApp): Plugin {
             state.radius as number,
             position,
             state.position as Position,
-            state.rodeLength
+            getRodeLength()
           )
           const was_sent = alarmSent
           alarmSent = anchorState !== undefined
@@ -1725,6 +1725,19 @@ const load = function (app: PluginServerApp): Plugin {
     return position
   }
 
+  function getRodeLength(): number | undefined {
+    let res: number | undefined
+    if (
+      configuration.rodeCounterPath &&
+      configuration.rodeCounterPath.length > 0
+    ) {
+      res = app.getSelfPath(configuration.rodeCounterPath + '.value') as number
+    } else {
+      res = state.rodeLength
+    }
+    return res
+  }
+
   plugin.id = 'anchoralarm'
   plugin.name = 'Anchor Alarm'
   plugin.description =
@@ -1952,6 +1965,10 @@ const load = function (app: PluginServerApp): Plugin {
 
       app.debug('set anchor radius: ' + maxRadius)
 
+      state.radius = maxRadius
+      configuration.radius = maxRadius
+      state.rodeLength = length
+
       const delta = getAnchorDelta(
         undefined,
         state.position,
@@ -1959,13 +1976,9 @@ const load = function (app: PluginServerApp): Plugin {
         maxRadius,
         false,
         undefined,
-        length
+        getRodeLength()
       )
       app.handleMessage(plugin.id, delta)
-
-      state.radius = maxRadius
-      configuration.radius = maxRadius
-      state.rodeLength = length
 
       try {
         saveState()
@@ -2025,7 +2038,7 @@ const load = function (app: PluginServerApp): Plugin {
         maxRadius,
         false,
         depth,
-        state.rodeLength
+        getRodeLength()
       )
 
       if ((app.debug as unknown as { enabled: boolean }).enabled) {
