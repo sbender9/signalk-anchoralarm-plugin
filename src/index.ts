@@ -407,7 +407,7 @@ const load = function (app: PluginServerApp): Plugin {
             configuration.state || 'emergency',
             'No position received'
           )
-        } else if (alarmSent === null && positionAlarmSent) {
+        } else if (alarmSent === false && positionAlarmSent) {
           const delta = getAnchorAlarmDelta('normal')
           app.handleMessage(plugin.id, delta)
           positionAlarmSent = false
