@@ -807,11 +807,12 @@ const load = function (app: PluginServerApp): Plugin {
     rodeExtendingRadiusStartRadius = undefined
     rodeExtendingRodeStartValue = undefined
 
-    if (alarmSent) {
+    if (alarmSent || positionAlarmSent) {
       const alarmDelta = getAnchorAlarmDelta('normal')
       app.handleMessage(plugin.id, alarmDelta)
     }
     alarmSent = false
+    positionAlarmSent = false
     delayStartTime = undefined
 
     delete state.position
