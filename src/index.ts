@@ -426,6 +426,10 @@ const load = function (app: PluginServerApp): Plugin {
         {
           path: 'navigation.headingTrue' as any,
           period: subscribeperiod
+        },
+        {
+          path: 'navigation.headingMagnetic' as any,
+          period: subscribeperiod
         }
       ]
     }
@@ -439,7 +443,7 @@ const load = function (app: PluginServerApp): Plugin {
       },
       (delta: Delta) => {
         let position: Position | undefined
-        let trueHeading: number | undefined
+        let headingChanged = false
 
         if (delta.updates) {
           delta.updates.forEach((update) => {
@@ -461,8 +465,8 @@ const load = function (app: PluginServerApp): Plugin {
                       track.shift()
                     }
                   }
-                } else if (vp.path === 'navigation.headingTrue') {
-                  trueHeading = vp.value as number
+                } else if (isHeadingDelta(vp.path)) {
+                  headingChanged = true
                 }
               })
             }
@@ -493,9 +497,9 @@ const load = function (app: PluginServerApp): Plugin {
           prevAnchorState = anchorState
         }
 
-        if (typeof trueHeading !== 'undefined' || position) {
-          if (typeof trueHeading !== 'undefined') {
-            lastTrueHeading = trueHeading
+        if (headingChanged || position) {
+          if (headingChanged) {
+            lastTrueHeading = getTrueHeading()
           }
           computeAnchorApparentBearing(
             lastPosition!,
@@ -857,10 +861,11 @@ const load = function (app: PluginServerApp): Plugin {
 
       return 'no position available'
     } else {
-      const position = computeBowLocation(
-        vesselPosition,
-        app.getSelfPath('navigation.headingTrue.value') as number | undefined
-      )
+      const heading = getTrueHeading()
+      if (typeof heading === 'undefined') {
+        app.debug('no heading available, using the GPS position')
+      }
+      const position = computeBowLocation(vesselPosition, heading)
 
       app.debug(
         'set anchor position to: ' +
@@ -1002,9 +1007,7 @@ const load = function (app: PluginServerApp): Plugin {
   }
 
   function calculateRodeLength(vesselPosition: Position): void {
-    const heading = app.getSelfPath('navigation.headingTrue.value') as
-      | number
-      | undefined
+    const heading = getTrueHeading()
     if (
       heading !== undefined &&
       state.position &&
@@ -1077,21 +1080,13 @@ const load = function (app: PluginServerApp): Plugin {
       }
     }
 
-    let heading = app.getSelfPath('navigation.headingTrue.value') as
-      | number
-      | undefined
-
+    const heading = getTrueHeading()
     if (typeof heading === 'undefined') {
-      heading = app.getSelfPath('navigation.headingMagnetic.value') as
-        | number
-        | undefined
-      if (typeof heading === 'undefined') {
-        app.debug('no heading available')
-        return {
-          statusCode: 403,
-          state: 'FAILED',
-          message: 'no heading available'
-        }
+      app.debug('no heading available')
+      return {
+        statusCode: 403,
+        state: 'FAILED',
+        message: 'no heading available'
       }
     }
 
@@ -1237,6 +1232,10 @@ const load = function (app: PluginServerApp): Plugin {
           {
             path: 'navigation.headingTrue' as Path,
             period: 1000
+          },
+          {
+            path: 'navigation.headingMagnetic' as Path,
+            period: 1000
           }
         ]
       },
@@ -1246,7 +1245,8 @@ const load = function (app: PluginServerApp): Plugin {
         app.setPluginError(err as string)
       },
       (delta) => {
-        let position, trueHeading
+        let position
+        let headingChanged = false
 
         if (delta.updates) {
           delta.updates.forEach((update) => {
@@ -1268,8 +1268,8 @@ const load = function (app: PluginServerApp): Plugin {
                       track.shift()
                     }
                   }
-                } else if (vp.path === 'navigation.headingTrue') {
-                  trueHeading = vp.value
+                } else if (isHeadingDelta(vp.path)) {
+                  headingChanged = true
                 }
               })
             }
@@ -1300,9 +1300,9 @@ const load = function (app: PluginServerApp): Plugin {
           prevAnchorState = anchorState
         }
 
-        if (typeof trueHeading !== 'undefined' || position) {
-          if (typeof trueHeading !== 'undefined') {
-            lastTrueHeading = trueHeading
+        if (headingChanged || position) {
+          if (headingChanged) {
+            lastTrueHeading = getTrueHeading()
           }
           computeAnchorApparentBearing(
             lastPosition as Position,
@@ -1451,10 +1451,7 @@ const load = function (app: PluginServerApp): Plugin {
         }
       ]
 
-      const bowPosition = computeBowLocation(
-        vesselPosition,
-        app.getSelfPath('navigation.headingTrue.value') as number | undefined
-      )
+      const bowPosition = computeBowLocation(vesselPosition, getTrueHeading())
       const bearing = degsToRad(
         geolib.getRhumbLineBearing(bowPosition, position)
       )
@@ -1709,6 +1706,42 @@ const load = function (app: PluginServerApp): Plugin {
         }
       ]
     })
+  }
+
+  // A headingMagnetic delta only counts when there is no headingTrue, so
+  // boats with both don't recompute and send apparentBearing twice
+  function isHeadingDelta(path: string): boolean {
+    if (path === 'navigation.headingTrue') {
+      return true
+    }
+    return (
+      path === 'navigation.headingMagnetic' &&
+      !Number.isFinite(app.getSelfPath('navigation.headingTrue.value'))
+    )
+  }
+
+  // navigation.headingTrue, else navigation.headingMagnetic corrected with
+  // navigation.magneticVariation when available
+  function getTrueHeading(): number | undefined {
+    const headingTrue = app.getSelfPath(
+      'navigation.headingTrue.value'
+    ) as number
+    if (Number.isFinite(headingTrue)) {
+      return headingTrue
+    }
+    const headingMagnetic = app.getSelfPath(
+      'navigation.headingMagnetic.value'
+    ) as number
+    if (!Number.isFinite(headingMagnetic)) {
+      return undefined
+    }
+    const variation = app.getSelfPath(
+      'navigation.magneticVariation.value'
+    ) as number
+    const heading = Number.isFinite(variation)
+      ? headingMagnetic + variation
+      : headingMagnetic
+    return (heading + Math.PI * 2) % (Math.PI * 2)
   }
 
   function computeBowLocation(position: any, heading?: number): any {

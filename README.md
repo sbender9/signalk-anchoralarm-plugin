@@ -237,7 +237,7 @@ Any Signal K client can monitor anchor status through the standard Signal K path
 - Maintains 24-hour position track history (1-minute resolution)
 - Automatically persists anchor state across server restarts
 - Calculates accurate anchor swing radius accounting for water depth and rode geometry
-- Supports GPS antenna bow offset compensation for precise anchor positioning
+- Supports GPS antenna bow offset compensation (`sensors.gps.fromBow`), using true heading or magnetic heading plus variation
 - **Depth-based anchor detection**: Automatically detects when anchor reaches seabed using water depth sensor data
 - **Rode counter automation**: Monitors rode deployment and automatically manages anchor position and alarm radius
 
