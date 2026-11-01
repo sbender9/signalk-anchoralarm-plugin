@@ -27,7 +27,6 @@ import {
   hasValues,
   SubscribeMessage,
   Path,
-  Context,
   Unsubscribes,
   PathValue,
   Notification
@@ -394,25 +393,26 @@ const load = function (app: PluginServerApp): Plugin {
   function startWatchingPosition(): void {
     if (positionStop.length > 0) return
 
-    if (configuration.noPositionAlarmTime !== 0) {
+    // the schema default applies when the setting was never saved
+    const noPositionAlarmTime = configuration.noPositionAlarmTime ?? 10
+    if (noPositionAlarmTime !== 0) {
       positionInterval = setInterval(() => {
         app.debug('checking last position...')
         if (
           !lastPositionTime ||
-          Date.now() - lastPositionTime >
-            (configuration.noPositionAlarmTime || 0) * 1000
+          Date.now() - lastPositionTime > noPositionAlarmTime * 1000
         ) {
           positionAlarmSent = true
           sendAnchorAlarm(
             configuration.state || 'emergency',
             'No position received'
           )
-        } else if (alarmSent === null && positionAlarmSent) {
+        } else if (alarmSent === false && positionAlarmSent) {
           const delta = getAnchorAlarmDelta('normal')
           app.handleMessage(plugin.id, delta)
           positionAlarmSent = false
         }
-      }, ((configuration.noPositionAlarmTime || 0) / 2.0) * 1000)
+      }, (noPositionAlarmTime / 2.0) * 1000)
     }
 
     track = []
@@ -1186,7 +1186,7 @@ const load = function (app: PluginServerApp): Plugin {
     )
     app.handleMessage(plugin.id, delta)
 
-    startWatchingPosistion()
+    startWatchingPosition()
 
     try {
       saveState()
@@ -1199,119 +1199,6 @@ const load = function (app: PluginServerApp): Plugin {
         message: (err as Error).message
       }
     }
-  }
-
-  function startWatchingPosistion() {
-    if (positionStop.length > 0) return
-
-    if (
-      configuration.noPositionAlarmTime != 0 &&
-      configuration.noPositionAlarmTime !== undefined
-    ) {
-      const noPositionAlarmTime: number = configuration.noPositionAlarmTime
-      positionInterval = setInterval(() => {
-        app.debug('checking last position...')
-        if (
-          !lastPositionTime ||
-          Date.now() - lastPositionTime > noPositionAlarmTime * 1000
-        ) {
-          positionAlarmSent = true
-          sendAnchorAlarm('alarm', 'No position received')
-        } else if (alarmSent === false && positionAlarmSent) {
-          const delta = getAnchorAlarmDelta('normal')
-          app.handleMessage(plugin.id, delta)
-          positionAlarmSent = false
-        }
-      }, (configuration.noPositionAlarmTime / 2.0) * 1000)
-    }
-
-    track = []
-    app.subscriptionmanager.subscribe(
-      {
-        context: 'vessels.self' as Context,
-        subscribe: [
-          {
-            path: 'navigation.position' as Path,
-            period: 1000
-          },
-          {
-            path: 'navigation.headingTrue' as Path,
-            period: 1000
-          }
-        ]
-      },
-      positionStop,
-      (err) => {
-        app.error(err as string)
-        app.setPluginError(err as string)
-      },
-      (delta) => {
-        let position, trueHeading
-
-        if (delta.updates) {
-          delta.updates.forEach((update) => {
-            if (hasValues(update)) {
-              update.values.forEach((vp) => {
-                if (vp.path === 'navigation.position') {
-                  position = vp.value
-                  // Track the positon. Only record the position every minute.
-                  if (
-                    track.length == 0 ||
-                    track[track.length - 1].time < Date.now() - 60 * 1000
-                  ) {
-                    track.push({
-                      position: position as Position,
-                      time: Date.now()
-                    })
-                    if (track.length > 24 * 60) {
-                      // Keep only the last 24 hours of track to avoid memory issues
-                      track.shift()
-                    }
-                  }
-                } else if (vp.path === 'navigation.headingTrue') {
-                  trueHeading = vp.value
-                }
-              })
-            }
-          })
-        }
-
-        if (position) {
-          lastPosition = position
-          lastPositionTime = Date.now()
-          const anchorState = checkPosition(
-            state.radius as number,
-            position,
-            state.position as Position,
-            getRodeLength()
-          )
-          const was_sent = alarmSent
-          alarmSent = anchorState !== undefined
-          if (was_sent && !anchorState) {
-            //clear it
-            app.debug('clear_it')
-            const anchorDelta = getAnchorAlarmDelta('normal')
-            app.handleMessage(plugin.id, anchorDelta)
-            delayStartTime = undefined
-            alarmSent = false
-          } else if (!was_sent || prevAnchorState != anchorState) {
-            sendAnchorAlarm(anchorState as string)
-          }
-          prevAnchorState = anchorState
-        }
-
-        if (typeof trueHeading !== 'undefined' || position) {
-          if (typeof trueHeading !== 'undefined') {
-            lastTrueHeading = trueHeading
-          }
-          computeAnchorApparentBearing(
-            lastPosition as Position,
-            state.position as Position,
-            lastTrueHeading
-          )
-        }
-      }
-    )
   }
 
   function checkPosition(
