@@ -403,10 +403,7 @@ const load = function (app: PluginServerApp): Plugin {
           Date.now() - lastPositionTime > noPositionAlarmTime * 1000
         ) {
           positionAlarmSent = true
-          sendAnchorAlarm(
-            configuration.state || 'emergency',
-            'No position received'
-          )
+          sendAnchorAlarm(alarmLevel(), 'No position received')
         } else if (alarmSent === false && positionAlarmSent) {
           const delta = getAnchorAlarmDelta('normal')
           app.handleMessage(plugin.id, delta)
@@ -1254,7 +1251,7 @@ const load = function (app: PluginServerApp): Plugin {
         ? (configuration.warningPercentage / 100) * radius
         : 0
       if (meters > radius) {
-        alarmState = configuration.state
+        alarmState = alarmLevel()
       } else if (
         warning > 0 &&
         configuration.warningNotification &&
@@ -1283,6 +1280,12 @@ const load = function (app: PluginServerApp): Plugin {
     }
 
     return undefined
+  }
+
+  // The configured alarm level, or the schema default when the setting
+  // was never saved
+  function alarmLevel(): string {
+    return configuration.state || 'emergency'
   }
 
   function sendAnchorAlarm(state: string | undefined, message?: string): void {
@@ -1400,7 +1403,7 @@ const load = function (app: PluginServerApp): Plugin {
               upper: maxRadius
             },
             {
-              state: configuration.state,
+              state: alarmLevel(),
               lower: maxRadius
             }
           ]
@@ -1412,7 +1415,7 @@ const load = function (app: PluginServerApp): Plugin {
               upper: maxRadius
             },
             {
-              state: configuration.state,
+              state: alarmLevel(),
               lower: maxRadius
             }
           ]
